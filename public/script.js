@@ -20,6 +20,7 @@ const historyList = document.querySelector("#history-list");
 
 const KEY_STORE = "museframe-api-key";
 const HISTORY_STORE = "museframe-history";
+const MAX_REFERENCE_FILES = 8;
 
 let referenceFiles = [];
 let currentImageUrl = "";
@@ -40,8 +41,8 @@ function init() {
   clearHistoryButton.addEventListener("click", clearHistory);
   downloadButton.addEventListener("click", downloadCurrentImage);
 
-  fileInput.addEventListener("change", () => {
-    addReferenceFiles(fileInput.files);
+  fileInput.addEventListener("change", async () => {
+    await addReferenceFiles(fileInput.files);
     fileInput.value = "";
   });
 
@@ -49,11 +50,13 @@ function init() {
     event.preventDefault();
     dropZone.classList.add("dragover");
   });
+
   dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-  dropZone.addEventListener("drop", (event) => {
+
+  dropZone.addEventListener("drop", async (event) => {
     event.preventDefault();
     dropZone.classList.remove("dragover");
-    addReferenceFiles(event.dataTransfer.files);
+    await addReferenceFiles(event.dataTransfer.files);
   });
 
   renderHistory();
@@ -74,7 +77,7 @@ async function checkBalance() {
   const key = getKey();
   if (!key) return;
 
-  setBalance("查询中", "正在尝试读取余额接口...");
+  setBalance("检测中", "正在检测 Key 是否能用于当前接口。");
   try {
     const data = await fetchJson("/api/balance", {
       method: "POST",
@@ -85,8 +88,9 @@ async function checkBalance() {
       body: JSON.stringify({model: modelInput.value}),
     });
     setBalance(data.balance || "Key 可用", data.detail || maskKey(key));
+    setMessage("Key 已保存。余额接口文档未开放，真实余额请看 Grsai 后台。", "success");
   } catch (error) {
-    setBalance("Key 已设置", "未读取到余额接口，生图不受影响。");
+    setBalance("Key 已设置", "未读取到余额接口，但不影响生图。");
     setMessage(error.message, "error");
   }
 }
@@ -105,7 +109,7 @@ async function generate() {
   currentImageUrl = "";
   downloadButton.disabled = true;
   savePrompt(prompt);
-  showLoading("正在提交任务", "正在连接 Grsai 生图接口，请稍等。");
+  showLoading("正在提交生图任务", referenceFiles.length ? "正在上传压缩后的参考图并连接 Grsai。" : "正在连接 Grsai 生图接口。");
   setLoading(true, "生成中...");
 
   try {
@@ -125,8 +129,9 @@ async function generate() {
     const result = await poll(created.taskId, key);
     finish(result.imageUrl);
   } catch (error) {
-    showError(prompt, error.message);
-    setMessage(`生成失败：${error.message}`, "error");
+    const detail = friendlyError(error);
+    showError(prompt, detail);
+    setMessage(`生成失败：${detail}`, "error");
   } finally {
     setLoading(false);
   }
@@ -192,11 +197,56 @@ function showError(prompt, detail) {
   `;
 }
 
-function addReferenceFiles(files) {
+async function addReferenceFiles(files) {
   const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
-  referenceFiles = [...referenceFiles, ...images].slice(0, 12);
+  if (!images.length) return;
+
+  setMessage("正在优化参考图体积...");
+  const optimized = [];
+  for (const file of images) {
+    optimized.push(await compressImage(file));
+  }
+
+  referenceFiles = [...referenceFiles, ...optimized].slice(0, MAX_REFERENCE_FILES);
   modeLabel.textContent = referenceFiles.length ? "图生图模式" : "文生图模式";
   renderReferences();
+  setMessage(`已添加 ${referenceFiles.length} 张参考图，已自动压缩，上传更稳定。`, "success");
+}
+
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxSide = 1280;
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const name = file.name.replace(/\.[^.]+$/, "") + "-museframe.jpg";
+          resolve(new File([blob], name, {type: "image/jpeg", lastModified: Date.now()}));
+        },
+        "image/jpeg",
+        0.82,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
 }
 
 function renderReferences() {
@@ -333,6 +383,17 @@ function setMessage(text, type = "") {
 function maskKey(key) {
   if (key.length <= 12) return "已保存";
   return `${key.slice(0, 5)}...${key.slice(-6)}`;
+}
+
+function friendlyError(error) {
+  const text = error?.message || String(error || "");
+  if (text === "Failed to fetch") {
+    return "浏览器没有连上后端，请刷新页面后重试；如果是图生图，请减少参考图数量。";
+  }
+  if (text.includes("timeout") || text.includes("timed out")) {
+    return "接口连接超时。已优化参考图压缩，请刷新后再试；参考图越少越稳定。";
+  }
+  return text;
 }
 
 function sleep(ms) {

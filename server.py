@@ -159,7 +159,7 @@ class Handler(SimpleHTTPRequestHandler):
                     mode=fields.get("mode", "text-to-image"),
                     files=files,
                 ),
-                "images": [file["data"] for file in files],
+                "images": [file["dataUrl"] for file in files],
                 "aspectRatio": image_size(selected_model),
                 "quality": image_quality(selected_model),
                 "replyType": "async",
@@ -222,11 +222,13 @@ class Handler(SimpleHTTPRequestHandler):
             filename = part.get_filename()
             payload = part.get_payload(decode=True) or b""
             if filename:
+                mime_type = part.get_content_type()
+                encoded = base64.b64encode(payload).decode("utf-8")
                 files.append(
                     {
                         "name": filename,
-                        "mimeType": part.get_content_type(),
-                        "data": base64.b64encode(payload).decode("utf-8"),
+                        "mimeType": mime_type,
+                        "dataUrl": f"data:{mime_type};base64,{encoded}",
                     }
                 )
             elif name:

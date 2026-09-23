@@ -1,3 +1,8 @@
+const accessGate = document.querySelector("#access-gate");
+const appShell = document.querySelector("#app-shell");
+const accessPasswordInput = document.querySelector("#access-password");
+const unlockButton = document.querySelector("#unlock-site");
+const gateMessage = document.querySelector("#gate-message");
 const apiKeyInput = document.querySelector("#api-key");
 const saveKeyButton = document.querySelector("#save-key");
 const checkBalanceButton = document.querySelector("#check-balance");
@@ -8,6 +13,8 @@ const dropZone = document.querySelector("#drop-zone");
 const referenceList = document.querySelector("#reference-list");
 const uploadPlaceholder = document.querySelector("#upload-placeholder");
 const modelInput = document.querySelector("#model");
+const aspectRatioInput = document.querySelector("#aspect-ratio");
+const imageCountInput = document.querySelector("#image-count");
 const promptInput = document.querySelector("#prompt");
 const generateButton = document.querySelector("#generate");
 const clearButton = document.querySelector("#clear");
@@ -20,14 +27,18 @@ const historyList = document.querySelector("#history-list");
 
 const KEY_STORE = "museframe-api-key";
 const HISTORY_STORE = "museframe-history";
+const ACCESS_STORE = "museframe-access-ok";
+const ACCESS_PASSWORD = "8611";
 const MAX_REFERENCE_FILES = 8;
 
 let referenceFiles = [];
-let currentImageUrl = "";
+let currentImageUrls = [];
 
 init();
 
 function init() {
+  initGate();
+
   const savedKey = localStorage.getItem(KEY_STORE) || "";
   if (savedKey) {
     apiKeyInput.value = savedKey;
@@ -60,6 +71,33 @@ function init() {
   });
 
   renderHistory();
+}
+
+function initGate() {
+  if (sessionStorage.getItem(ACCESS_STORE) === "1") {
+    unlockApp();
+    return;
+  }
+  accessPasswordInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") verifyAccess();
+  });
+  unlockButton.addEventListener("click", verifyAccess);
+  setTimeout(() => accessPasswordInput.focus(), 80);
+}
+
+function verifyAccess() {
+  if (accessPasswordInput.value.trim() !== ACCESS_PASSWORD) {
+    gateMessage.textContent = "密码不对。";
+    accessPasswordInput.select();
+    return;
+  }
+  sessionStorage.setItem(ACCESS_STORE, "1");
+  unlockApp();
+}
+
+function unlockApp() {
+  accessGate.classList.add("hidden");
+  appShell.classList.remove("locked");
 }
 
 function saveKey() {
@@ -106,7 +144,7 @@ async function generate() {
     return;
   }
 
-  currentImageUrl = "";
+  currentImageUrls = [];
   downloadButton.disabled = true;
   savePrompt(prompt);
   showLoading(
@@ -119,18 +157,22 @@ async function generate() {
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("model", modelInput.value);
+    formData.append("aspectRatio", aspectRatioInput.value);
+    formData.append("count", imageCountInput.value);
     formData.append("mode", referenceFiles.length ? "image-to-image" : "text-to-image");
     referenceFiles.forEach((file) => formData.append("images", file));
 
     const created = await postForm("/api/generate", formData, key);
-    if (created.imageUrl) {
-      finish(created.imageUrl);
+    const taskIds = normalizeTaskIds(created);
+    const directImages = normalizeImageUrls(created);
+    if (directImages.length) {
+      finish(directImages);
       return;
     }
-    if (!created.taskId) throw new Error("生图接口没有返回任务 ID。");
+    if (!taskIds.length) throw new Error("生图接口没有返回任务 ID。");
 
-    const result = await poll(created.taskId, key);
-    finish(result.imageUrl);
+    const resultUrls = await pollTasks(taskIds, key);
+    finish(resultUrls);
   } catch (error) {
     const detail = friendlyError(error);
     showError(prompt, detail);
@@ -138,6 +180,16 @@ async function generate() {
   } finally {
     setLoading(false);
   }
+}
+
+function normalizeTaskIds(data) {
+  if (Array.isArray(data?.tasks)) return data.tasks.map((item) => item.taskId).filter(Boolean);
+  return data?.taskId ? [data.taskId] : [];
+}
+
+function normalizeImageUrls(data) {
+  if (Array.isArray(data?.images)) return data.images.filter(Boolean);
+  return data?.imageUrl ? [data.imageUrl] : [];
 }
 
 async function postForm(url, formData, key) {
@@ -151,17 +203,26 @@ async function postForm(url, formData, key) {
   return data;
 }
 
-async function poll(taskId, key) {
+async function pollTasks(taskIds, key) {
+  const remaining = new Set(taskIds);
+  const images = [];
   for (let i = 1; i <= 120; i += 1) {
     await sleep(3000);
-    showLoading("正在生成图片", `任务已提交，正在第 ${i} 次查询结果。`);
-    const data = await fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
-      headers: {"X-Image-Api-Key": key},
-    });
-    if (data.imageUrl) return data;
-    if (data.status && !["running", "pending", "processing"].includes(data.status)) {
-      throw new Error(`任务状态异常：${data.status}`);
+    showLoading("正在生成图片", `已完成 ${images.length}/${taskIds.length} 张，正在第 ${i} 次查询结果。`);
+
+    for (const taskId of Array.from(remaining)) {
+      const data = await fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
+        headers: {"X-Image-Api-Key": key},
+      });
+      if (data.imageUrl) {
+        images.push(data.imageUrl);
+        remaining.delete(taskId);
+      } else if (data.status && !["running", "pending", "processing"].includes(data.status)) {
+        remaining.delete(taskId);
+      }
     }
+
+    if (!remaining.size && images.length) return images;
   }
   throw new Error("生成时间过长，请稍后重试。");
 }
@@ -173,11 +234,19 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
-function finish(imageUrl) {
-  currentImageUrl = imageUrl;
-  imageStage.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="生成图片">`;
+function finish(imageUrls) {
+  currentImageUrls = imageUrls;
+  imageStage.innerHTML = `
+    <div class="result-grid count-${Math.min(imageUrls.length, 4)}">
+      ${imageUrls.map((url, index) => `
+        <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+          <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
+        </a>
+      `).join("")}
+    </div>
+  `;
   downloadButton.disabled = false;
-  setMessage("生成完成。", "success");
+  setMessage(`生成完成，共 ${imageUrls.length} 张。`, "success");
 }
 
 function showLoading(title, detail) {
@@ -284,7 +353,7 @@ function renderReferences() {
 function clearForm() {
   promptInput.value = "";
   referenceFiles = [];
-  currentImageUrl = "";
+  currentImageUrls = [];
   downloadButton.disabled = true;
   modeLabel.textContent = "文生图模式";
   renderReferences();
@@ -303,6 +372,8 @@ function savePrompt(prompt) {
     prompt,
     mode: referenceFiles.length ? "图生图" : "文生图",
     model: modelInput.value,
+    ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
+    count: imageCountInput.value,
     time: new Date().toLocaleString("zh-CN", {hour12: false}),
   };
   localStorage.setItem(
@@ -329,7 +400,7 @@ function renderHistory() {
 
   historyList.innerHTML = history.map((item) => `
     <article class="history-item">
-      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)}</b>
+      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${escapeHtml(item.count || "1")}张</b>
       <p>${escapeHtml(item.prompt)}</p>
       <button type="button" data-prompt="${escapeHtml(item.prompt)}">复用提示词</button>
     </article>
@@ -350,12 +421,14 @@ function clearHistory() {
 }
 
 function downloadCurrentImage() {
-  if (!currentImageUrl) return;
-  const link = document.createElement("a");
-  link.href = currentImageUrl;
-  link.download = `museframe-${Date.now()}.png`;
-  link.target = "_blank";
-  link.click();
+  if (!currentImageUrls.length) return;
+  currentImageUrls.forEach((url, index) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `museframe-${Date.now()}-${index + 1}.png`;
+    link.target = "_blank";
+    link.click();
+  });
 }
 
 function getKey() {

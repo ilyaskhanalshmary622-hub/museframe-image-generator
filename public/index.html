@@ -7,7 +7,21 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <main class="shell">
+  <section id="access-gate" class="access-gate">
+    <div class="gate-card">
+      <span class="mark">MF</span>
+      <p class="eyebrow">PRIVATE STUDIO</p>
+      <h1>MuseFrame</h1>
+      <p>输入访问密码后进入生图工作台。</p>
+      <div class="gate-form">
+        <input id="access-password" type="password" placeholder="输入访问密码">
+        <button id="unlock-site" type="button">进入</button>
+      </div>
+      <small id="gate-message"></small>
+    </div>
+  </section>
+
+  <main id="app-shell" class="shell locked">
     <header class="topbar">
       <div class="brand">
         <span class="mark">MF</span>
@@ -65,16 +79,45 @@
           <div class="reference-list" id="reference-list"></div>
         </label>
 
-        <label class="field">
-          <span>模型</span>
-          <select id="model">
-            <option value="gpt-image-2.5" selected>gpt-image-2.5</option>
-            <option value="gpt-image-2">gpt-image-2</option>
-            <option value="gpt-image-2-vip">gpt-image-2-vip</option>
-            <option value="gpt-image-2.5-flare">gpt-image-2.5-flare</option>
-            <option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst</option>
-          </select>
-        </label>
+        <div class="settings-grid">
+          <label class="field">
+            <span>模型</span>
+            <select id="model">
+              <option value="gpt-image-2.5" selected>gpt-image-2.5</option>
+              <option value="gpt-image-2">gpt-image-2</option>
+              <option value="gpt-image-2-vip">gpt-image-2-vip</option>
+              <option value="gpt-image-2.5-flare">gpt-image-2.5-flare</option>
+              <option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>比例</span>
+            <select id="aspect-ratio">
+              <option value="1024x1024" selected>1:1 方图</option>
+              <option value="1280x720">16:9 横版</option>
+              <option value="720x1280">9:16 竖版</option>
+              <option value="1152x864">4:3 横版</option>
+              <option value="864x1152">3:4 竖版</option>
+              <option value="1536x1024">3:2 横版</option>
+              <option value="1024x1536">2:3 竖版</option>
+              <option value="1120x896">5:4 横版</option>
+              <option value="896x1120">4:5 竖版</option>
+              <option value="1920x832">21:9 超宽</option>
+              <option value="832x1920">9:21 长竖</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>张数</span>
+            <select id="image-count">
+              <option value="1" selected>1 张</option>
+              <option value="2">2 张</option>
+              <option value="3">3 张</option>
+              <option value="4">4 张</option>
+            </select>
+          </label>
+        </div>
 
         <label class="field">
           <span>提示词</span>

@@ -55,6 +55,31 @@ def image_size(model):
     return "1024x1024"
 
 
+def safe_image_count(value):
+    try:
+        return min(4, max(1, int(value)))
+    except (TypeError, ValueError):
+        return 1
+
+
+def safe_aspect_ratio(value, model):
+    allowed = {
+        "1024x1024",
+        "1280x720",
+        "720x1280",
+        "1152x864",
+        "864x1152",
+        "1536x1024",
+        "1024x1536",
+        "1120x896",
+        "896x1120",
+        "1920x832",
+        "832x1920",
+    }
+    value = (value or "").strip()
+    return value if value in allowed else image_size(model)
+
+
 def build_prompt(prompt, mode, files):
     output_mode = "image-to-image" if files or mode == "image-to-image" else "text-to-image"
     lines = [
@@ -174,20 +199,33 @@ class Handler(SimpleHTTPRequestHandler):
                 return
 
             selected_model = model_name(fields.get("model", ""))
-            payload = {
+            count = safe_image_count(fields.get("count", "1"))
+            prompt_text = build_prompt(
+                prompt=prompt,
+                mode=fields.get("mode", "text-to-image"),
+                files=files,
+            )
+            common_payload = {
                 "model": selected_model,
-                "prompt": build_prompt(
-                    prompt=prompt,
-                    mode=fields.get("mode", "text-to-image"),
-                    files=files,
-                ),
                 "images": [file["dataUrl"] for file in files],
-                "aspectRatio": image_size(selected_model),
+                "aspectRatio": safe_aspect_ratio(fields.get("aspectRatio", ""), selected_model),
                 "quality": image_quality(selected_model),
                 "replyType": "async",
             }
-            data = grsai_request(api_key, image_api_url(), payload)
-            self.send_json(200, normalize_result(data))
+            results = []
+            for index in range(count):
+                payload = {
+                    **common_payload,
+                    "prompt": f"{prompt_text}\n\nVariation index: {index + 1}. Keep the same brief, but create a distinct usable version.",
+                }
+                results.append(normalize_result(grsai_request(api_key, image_api_url(), payload)))
+
+            images = [item["imageUrl"] for item in results if item.get("imageUrl")]
+            tasks = [{"taskId": item["taskId"]} for item in results if item.get("taskId")]
+            if len(results) == 1:
+                self.send_json(200, results[0])
+            else:
+                self.send_json(200, {"status": "running", "tasks": tasks, "images": images})
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 

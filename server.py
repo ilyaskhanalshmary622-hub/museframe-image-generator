@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import json
 import os
 import socket
@@ -31,90 +31,40 @@ def image_result_url(task_id):
     return f"{image_api_base()}/v1/api/result?id={task_id}"
 
 
-def model_name():
-    return env("IMAGE_MODEL", "gpt-image-2.5")
+def model_name(value=""):
+    return (value or env("IMAGE_MODEL", "gpt-image-2.5")).strip()
 
 
-def image_quality(quality):
-    model = model_name()
+def image_quality(model):
     if model in {"gpt-image-2", "gpt-image-2.5"}:
         return "auto"
-    return {
-        "1k": "low",
-        "2k": "medium",
-        "4k": "high",
-        "8k": "max",
-    }.get(quality, "medium")
+    return "medium"
 
 
-def image_size(ratio, quality):
-    model = model_name()
-
-    # Grsai docs: gpt-image-2 / gpt-image-2.5 should stay in 1K-grade sizes.
-    # Higher pixel sizes are reserved for vip / flare / sunburst style models.
+def image_size(model):
     if model in {"gpt-image-2", "gpt-image-2.5"}:
-        return {
-            "1:1": "1024x1024",
-            "16:9": "1672x941",
-            "9:16": "941x1672",
-            "4:3": "1443x1090",
-            "3:4": "1090x1443",
-            "4:5": "1120x1408",
-        }.get(ratio, "1024x1024")
-
-    if quality == "1k":
-        return {
-            "1:1": "1024x1024",
-            "16:9": "1280x720",
-            "9:16": "720x1280",
-            "4:5": "896x1120",
-            "3:4": "864x1152",
-        }.get(ratio, "1024x1024")
-    if quality == "4k":
-        return {
-            "1:1": "2880x2880",
-            "16:9": "3840x2160",
-            "9:16": "2160x3840",
-            "4:5": "2560x3200",
-            "3:4": "2448x3264",
-        }.get(ratio, "2880x2880")
-    if quality == "8k":
-        return {
-            "1:1": "4096x4096",
-            "16:9": "7680x4320",
-            "9:16": "4320x7680",
-            "4:5": "5120x6400",
-            "3:4": "4896x6528",
-        }.get(ratio, "4096x4096")
-    return {
-        "1:1": "2048x2048",
-        "16:9": "2048x1152",
-        "9:16": "1152x2048",
-        "4:5": "1792x2240",
-        "3:4": "1536x2048",
-    }.get(ratio, "2048x2048")
+        return "auto"
+    return "1024x1024"
 
 
-def build_prompt(prompt, mode, ratio, quality, edit_mode, edit_brief, files):
+def build_prompt(prompt, mode, files):
+    output_mode = "image-to-image" if files or mode == "image-to-image" else "text-to-image"
     lines = [
         prompt.strip(),
         "",
-        f"鐢婚潰姣斾緥锛歿ratio}",
-        f"娓呮櫚搴﹂渶姹傦細{quality.upper()}",
-        f"鐢熸垚妯″紡锛歿'鍥剧敓鍥? if files or mode == 'image-to-image' else '鏂囩敓鍥?}",
-        f"缂栬緫鏂瑰紡锛歿edit_mode}",
-        "瑕佹眰锛氱湡瀹炶嚜鐒讹紝楂樼骇鍟嗕笟鎽勫奖璐ㄦ劅锛屼富浣撴竻鏅帮紝缁嗚妭骞插噣锛屼笉瑕佹按鍗帮紝涓嶈閿欏瓧锛屼笉瑕佺暩褰€?,
+        f"Generation mode: {output_mode}",
+        "Style requirements: realistic, natural, premium commercial photography, clean details, clear subject, no watermark, no typo, no distorted object.",
     ]
-    if edit_brief.strip():
-        lines.extend(["鏇挎崲/缂栬緫瑕佹眰锛?, edit_brief.strip()])
     if files:
-        lines.append(f"鍙傝€冨浘鏁伴噺锛歿len(files)}銆傚敖閲忎繚鎸佸弬鑰冨浘涓殑浜у搧缁撴瀯銆丩ogo 鏈濆悜銆佹潗璐ㄥ拰鍏抽敭璇嗗埆鐐广€?)
+        lines.append(
+            f"Reference image count: {len(files)}. Keep the product structure, logo direction, material, and key visual identity from the reference images."
+        )
     return "\n".join(lines)
 
 
 def normalize_result(data):
     if not isinstance(data, dict):
-        raise RuntimeError("鐢熷浘鏈嶅姟杩斿洖鏍煎紡寮傚父")
+        raise RuntimeError("Invalid response format from image service")
 
     results = data.get("results")
     if isinstance(results, list) and results:
@@ -152,18 +102,17 @@ def grsai_request(api_key, url, payload=None):
     for attempt in range(2):
         try:
             with request.urlopen(req, timeout=timeout) as resp:
-                text = resp.read().decode("utf-8")
-                return json.loads(text)
+                return json.loads(resp.read().decode("utf-8"))
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Grsai 杩斿洖 {exc.code}锛歿detail}") from exc
+            raise RuntimeError(f"Grsai HTTP {exc.code}: {detail}") from exc
         except (error.URLError, TimeoutError, socket.timeout) as exc:
             last_error = exc
             if attempt == 0:
                 continue
 
     reason = getattr(last_error, "reason", last_error)
-    raise RuntimeError(f"Grsai 缃戠粶瓒呮椂鎴栬繛鎺ュけ璐ワ細{reason}")
+    raise RuntimeError(f"Grsai network timeout or connection failed: {reason}")
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -174,7 +123,10 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/generate":
             self.handle_generate()
             return
-        self.send_json(404, {"error": "鎺ュ彛涓嶅瓨鍦?})
+        if self.path == "/api/balance":
+            self.handle_balance()
+            return
+        self.send_json(404, {"error": "Endpoint not found"})
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -187,76 +139,73 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def handle_generate(self):
-        if not self.authorized():
-            return
-        api_key = env("IMAGE_API_KEY")
+        api_key = self.image_api_key()
         if not api_key:
-            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃?IMAGE_API_KEY"})
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
             return
 
         try:
             fields, files = self.read_multipart()
             prompt = fields.get("prompt", "").strip()
             if not prompt:
-                self.send_json(400, {"error": "璇疯緭鍏ユ彁绀鸿瘝"})
+                self.send_json(400, {"error": "Prompt is required"})
                 return
 
-            quality = fields.get("quality", "1k")
-            ratio = fields.get("ratio", "1:1")
+            selected_model = model_name(fields.get("model", ""))
             payload = {
-                "model": model_name(),
+                "model": selected_model,
                 "prompt": build_prompt(
                     prompt=prompt,
                     mode=fields.get("mode", "text-to-image"),
-                    ratio=ratio,
-                    quality=quality,
-                    edit_mode=fields.get("editMode", "generate"),
-                    edit_brief=fields.get("editBrief", ""),
                     files=files,
                 ),
                 "images": [file["data"] for file in files],
-                "aspectRatio": image_size(ratio, quality),
-                "quality": image_quality(quality),
+                "aspectRatio": image_size(selected_model),
+                "quality": image_quality(selected_model),
                 "replyType": "async",
             }
             data = grsai_request(api_key, image_api_url(), payload)
             self.send_json(200, normalize_result(data))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 
     def handle_result(self, parsed):
-        if not self.authorized():
-            return
-        api_key = env("IMAGE_API_KEY")
+        api_key = self.image_api_key()
         if not api_key:
-            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃?IMAGE_API_KEY"})
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
             return
 
         task_id = (parse_qs(parsed.query).get("id") or [""])[0].strip()
         if not task_id:
-            self.send_json(400, {"error": "缂哄皯浠诲姟 ID"})
+            self.send_json(400, {"error": "Task ID is required"})
             return
 
         try:
             data = grsai_request(api_key, image_result_url(task_id))
             self.send_json(200, normalize_result(data))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 
-    def authorized(self):
-        password = env("MUSEFRAME_ACCESS_PASSWORD")
-        if not password:
-            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃闂瘑鐮?})
-            return False
-        if self.headers.get("X-MuseFrame-Password", "").strip() != password:
-            self.send_json(403, {"error": "璁块棶瀵嗙爜涓嶆纭?})
-            return False
-        return True
+    def handle_balance(self):
+        api_key = self.image_api_key()
+        if not api_key:
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
+            return
+        self.send_json(
+            200,
+            {
+                "balance": "Key ready",
+                "detail": "Balance API is not included in the current Grsai docs. Generation is available.",
+            },
+        )
+
+    def image_api_key(self):
+        return self.headers.get("X-Image-Api-Key", "").strip() or env("IMAGE_API_KEY")
 
     def read_multipart(self):
         content_type = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in content_type:
-            raise ValueError("璇锋眰鏍煎紡閿欒锛氶渶瑕?multipart/form-data")
+            raise ValueError("Invalid request format: multipart/form-data is required")
 
         content_length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(content_length)

@@ -1,50 +1,50 @@
-const gate = document.querySelector("#gate");
-const app = document.querySelector("#app");
-const accessPassword = document.querySelector("#access-password");
-const unlockButton = document.querySelector("#unlock");
-const gateMessage = document.querySelector("#gate-message");
+const apiKeyInput = document.querySelector("#api-key");
+const saveKeyButton = document.querySelector("#save-key");
+const checkBalanceButton = document.querySelector("#check-balance");
+const balanceValue = document.querySelector("#balance-value");
+const balanceDetail = document.querySelector("#balance-detail");
 const fileInput = document.querySelector("#reference-file");
 const dropZone = document.querySelector("#drop-zone");
 const referenceList = document.querySelector("#reference-list");
 const uploadPlaceholder = document.querySelector("#upload-placeholder");
+const modelInput = document.querySelector("#model");
 const promptInput = document.querySelector("#prompt");
-const ratioInput = document.querySelector("#ratio");
-const qualityInput = document.querySelector("#quality");
-const editModeInput = document.querySelector("#edit-mode");
-const editBriefInput = document.querySelector("#edit-brief");
 const generateButton = document.querySelector("#generate");
 const clearButton = document.querySelector("#clear");
 const clearHistoryButton = document.querySelector("#clear-history");
+const downloadButton = document.querySelector("#download-image");
 const imageStage = document.querySelector("#image-stage");
 const message = document.querySelector("#message");
 const modeLabel = document.querySelector("#mode-label");
 const historyList = document.querySelector("#history-list");
-const energyValue = document.querySelector("#energy-value");
-const energyFill = document.querySelector("#energy-fill");
 
-const PASSWORD_KEY = "museframe-password";
-const HISTORY_KEY = "museframe-history";
+const KEY_STORE = "museframe-api-key";
+const HISTORY_STORE = "museframe-history";
 
 let referenceFiles = [];
-let energy = Number(localStorage.getItem("museframe-energy")) || 86;
+let currentImageUrl = "";
 
 init();
 
 function init() {
-  const password = sessionStorage.getItem(PASSWORD_KEY);
-  if (password) unlock(false);
-  updateEnergy();
-  renderHistory();
+  const savedKey = localStorage.getItem(KEY_STORE) || "";
+  if (savedKey) {
+    apiKeyInput.value = savedKey;
+    setBalance("Key 已设置", maskKey(savedKey));
+  }
 
-  unlockButton.addEventListener("click", () => unlock(true));
-  accessPassword.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") unlock(true);
-  });
+  saveKeyButton.addEventListener("click", saveKey);
+  checkBalanceButton.addEventListener("click", checkBalance);
+  generateButton.addEventListener("click", generate);
+  clearButton.addEventListener("click", clearForm);
+  clearHistoryButton.addEventListener("click", clearHistory);
+  downloadButton.addEventListener("click", downloadCurrentImage);
 
   fileInput.addEventListener("change", () => {
     addReferenceFiles(fileInput.files);
     fileInput.value = "";
   });
+
   dropZone.addEventListener("dragover", (event) => {
     event.preventDefault();
     dropZone.classList.add("dragover");
@@ -56,54 +56,73 @@ function init() {
     addReferenceFiles(event.dataTransfer.files);
   });
 
-  clearButton.addEventListener("click", clearForm);
-  clearHistoryButton.addEventListener("click", clearHistory);
-  generateButton.addEventListener("click", generate);
+  renderHistory();
 }
 
-function unlock(fromInput) {
-  const password = fromInput ? accessPassword.value.trim() : sessionStorage.getItem(PASSWORD_KEY);
-  if (!password) {
-    gateMessage.textContent = "请输入访问密码。";
+function saveKey() {
+  const key = apiKeyInput.value.trim();
+  if (!key) {
+    setMessage("先输入 Grsai API Key。", "error");
     return;
   }
-  sessionStorage.setItem(PASSWORD_KEY, password);
-  gate.classList.add("hidden");
-  app.classList.remove("locked");
+  localStorage.setItem(KEY_STORE, key);
+  setBalance("Key 已设置", maskKey(key));
+  setMessage("API Key 已保存在当前浏览器。", "success");
+}
+
+async function checkBalance() {
+  const key = getKey();
+  if (!key) return;
+
+  setBalance("查询中", "正在尝试读取余额接口...");
+  try {
+    const data = await fetchJson("/api/balance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Image-Api-Key": key,
+      },
+      body: JSON.stringify({model: modelInput.value}),
+    });
+    setBalance(data.balance || "Key 可用", data.detail || maskKey(key));
+  } catch (error) {
+    setBalance("Key 已设置", "未读取到余额接口，生图不受影响。");
+    setMessage(error.message, "error");
+  }
 }
 
 async function generate() {
+  const key = getKey();
   const prompt = promptInput.value.trim();
-  const password = sessionStorage.getItem(PASSWORD_KEY) || "";
-  if (!prompt) {
-    setMessage("先输入提示词。", "error");
-    promptInput.focus();
+  if (!key || !prompt) {
+    if (!prompt) {
+      setMessage("先输入提示词。", "error");
+      promptInput.focus();
+    }
     return;
   }
 
+  currentImageUrl = "";
+  downloadButton.disabled = true;
   savePrompt(prompt);
-  setLoading(true, "提交中...");
-  showLoading("正在提交生图任务", "任务创建后会自动查询结果，请不要关闭页面。");
+  showLoading("正在提交任务", "正在连接 Grsai 生图接口，请稍等。");
+  setLoading(true, "生成中...");
 
   try {
     const formData = new FormData();
     formData.append("prompt", prompt);
+    formData.append("model", modelInput.value);
     formData.append("mode", referenceFiles.length ? "image-to-image" : "text-to-image");
-    formData.append("ratio", ratioInput.value);
-    formData.append("quality", qualityInput.value);
-    formData.append("editMode", editModeInput.value);
-    formData.append("editBrief", editBriefInput.value.trim());
     referenceFiles.forEach((file) => formData.append("images", file));
 
-    const created = await postForm("/api/generate", formData, password);
+    const created = await postForm("/api/generate", formData, key);
     if (created.imageUrl) {
       finish(created.imageUrl);
       return;
     }
-    if (!created.taskId) throw new Error("生图服务没有返回任务 ID");
+    if (!created.taskId) throw new Error("生图接口没有返回任务 ID。");
 
-    setLoading(true, "生成中...");
-    const result = await poll(created.taskId, password);
+    const result = await poll(created.taskId, key);
     finish(result.imageUrl);
   } catch (error) {
     showError(prompt, error.message);
@@ -113,10 +132,10 @@ async function generate() {
   }
 }
 
-async function postForm(url, formData, password) {
+async function postForm(url, formData, key) {
   const response = await fetch(url, {
     method: "POST",
-    headers: {"X-MuseFrame-Password": password},
+    headers: {"X-Image-Api-Key": key},
     body: formData,
   });
   const data = await response.json().catch(() => ({}));
@@ -124,33 +143,39 @@ async function postForm(url, formData, password) {
   return data;
 }
 
-async function poll(taskId, password) {
+async function poll(taskId, key) {
   for (let i = 1; i <= 120; i += 1) {
     await sleep(3000);
-    showLoading("正在生成图片", `任务 ID：${taskId}。已查询 ${i} 次。`);
-    const response = await fetch(`/api/result?id=${encodeURIComponent(taskId)}`, {
-      headers: {"X-MuseFrame-Password": password},
+    showLoading("正在生成图片", `任务已提交，正在第 ${i} 次查询结果。`);
+    const data = await fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
+      headers: {"X-Image-Api-Key": key},
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `查询失败 ${response.status}`);
     if (data.imageUrl) return data;
     if (data.status && !["running", "pending", "processing"].includes(data.status)) {
       throw new Error(`任务状态异常：${data.status}`);
     }
   }
-  throw new Error(`生成时间过长，请稍后重试。任务 ID：${taskId}`);
+  throw new Error("生成时间过长，请稍后重试。");
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `接口返回 ${response.status}`);
+  return data;
 }
 
 function finish(imageUrl) {
+  currentImageUrl = imageUrl;
   imageStage.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="生成图片">`;
-  consumeEnergy();
+  downloadButton.disabled = false;
   setMessage("生成完成。", "success");
 }
 
 function showLoading(title, detail) {
   imageStage.innerHTML = `
     <div class="loading">
-      <div class="loading-ring"></div>
+      <div class="loading-orb"></div>
       <strong>${escapeHtml(title)}</strong>
       <span>${escapeHtml(detail)}</span>
     </div>
@@ -161,20 +186,10 @@ function showError(prompt, detail) {
   imageStage.innerHTML = `
     <div class="empty">
       <strong>暂未生成成功</strong>
-      <span>${escapeHtml(detail || "请检查 API Key、额度、模型或接口节点。")}</span>
-      <span>本次提示词：${escapeHtml(prompt.slice(0, 88))}${prompt.length > 88 ? "..." : ""}</span>
+      <span>${escapeHtml(detail || "请检查 API Key、模型或接口节点。")}</span>
+      <span>本次提示词：${escapeHtml(prompt.slice(0, 80))}${prompt.length > 80 ? "..." : ""}</span>
     </div>
   `;
-}
-
-function setLoading(active, text = "生成图片") {
-  generateButton.disabled = active;
-  generateButton.textContent = active ? text : "生成图片";
-}
-
-function setMessage(text, type = "") {
-  message.textContent = text;
-  message.className = type;
 }
 
 function addReferenceFiles(files) {
@@ -214,10 +229,17 @@ function renderReferences() {
 
 function clearForm() {
   promptInput.value = "";
-  editBriefInput.value = "";
   referenceFiles = [];
+  currentImageUrl = "";
+  downloadButton.disabled = true;
   modeLabel.textContent = "文生图模式";
   renderReferences();
+  imageStage.innerHTML = `
+    <div class="empty">
+      <strong>等待生成</strong>
+      <span>输入提示词，或拖入参考图后生成。</span>
+    </div>
+  `;
   setMessage("已清空。");
 }
 
@@ -226,17 +248,19 @@ function savePrompt(prompt) {
   const item = {
     prompt,
     mode: referenceFiles.length ? "图生图" : "文生图",
-    ratio: ratioInput.value,
-    quality: qualityInput.value,
+    model: modelInput.value,
     time: new Date().toLocaleString("zh-CN", {hour12: false}),
   };
-  localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...history.filter((old) => old.prompt !== prompt)].slice(0, 12)));
+  localStorage.setItem(
+    HISTORY_STORE,
+    JSON.stringify([item, ...history.filter((old) => old.prompt !== prompt)].slice(0, 12)),
+  );
   renderHistory();
 }
 
 function getHistory() {
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    return JSON.parse(localStorage.getItem(HISTORY_STORE)) || [];
   } catch {
     return [];
   }
@@ -245,16 +269,18 @@ function getHistory() {
 function renderHistory() {
   const history = getHistory();
   if (!history.length) {
-    historyList.innerHTML = `<div class="history-empty">暂无记录。生成一次后会自动保存提示词。</div>`;
+    historyList.innerHTML = `<div class="history-empty">暂无记录，生成一次后会自动保存提示词。</div>`;
     return;
   }
+
   historyList.innerHTML = history.map((item) => `
     <article class="history-item">
-      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.time)}</b>
+      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)}</b>
       <p>${escapeHtml(item.prompt)}</p>
       <button type="button" data-prompt="${escapeHtml(item.prompt)}">复用提示词</button>
     </article>
   `).join("");
+
   historyList.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
       promptInput.value = button.dataset.prompt || "";
@@ -265,20 +291,48 @@ function renderHistory() {
 }
 
 function clearHistory() {
-  localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem(HISTORY_STORE);
   renderHistory();
 }
 
-function consumeEnergy() {
-  const costMap = {"1k": 2, "2k": 4, "4k": 8, "8k": 16};
-  energy = Math.max(0, energy - (costMap[qualityInput.value] || 4));
-  localStorage.setItem("museframe-energy", String(energy));
-  updateEnergy();
+function downloadCurrentImage() {
+  if (!currentImageUrl) return;
+  const link = document.createElement("a");
+  link.href = currentImageUrl;
+  link.download = `museframe-${Date.now()}.png`;
+  link.target = "_blank";
+  link.click();
 }
 
-function updateEnergy() {
-  energyValue.textContent = `${energy}%`;
-  energyFill.style.width = `${energy}%`;
+function getKey() {
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
+  if (!key) {
+    setMessage("先输入并保存 Grsai API Key。", "error");
+    apiKeyInput.focus();
+    return "";
+  }
+  localStorage.setItem(KEY_STORE, key);
+  return key;
+}
+
+function setBalance(value, detail) {
+  balanceValue.textContent = value;
+  balanceDetail.textContent = detail;
+}
+
+function setLoading(active, text = "生成图片") {
+  generateButton.disabled = active;
+  generateButton.textContent = active ? text : "生成图片";
+}
+
+function setMessage(text, type = "") {
+  message.textContent = text;
+  message.className = type;
+}
+
+function maskKey(key) {
+  if (key.length <= 12) return "已保存";
+  return `${key.slice(0, 5)}...${key.slice(-6)}`;
 }
 
 function sleep(ms) {

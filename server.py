@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import socket
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -38,16 +39,29 @@ def image_quality(quality):
     model = model_name()
     if model in {"gpt-image-2", "gpt-image-2.5"}:
         return "auto"
-    if quality == "1k":
-        return "low"
-    if quality == "2k":
-        return "medium"
-    if quality == "4k":
-        return "high"
-    return "xhigh"
+    return {
+        "1k": "low",
+        "2k": "medium",
+        "4k": "high",
+        "8k": "max",
+    }.get(quality, "medium")
 
 
 def image_size(ratio, quality):
+    model = model_name()
+
+    # Grsai docs: gpt-image-2 / gpt-image-2.5 should stay in 1K-grade sizes.
+    # Higher pixel sizes are reserved for vip / flare / sunburst style models.
+    if model in {"gpt-image-2", "gpt-image-2.5"}:
+        return {
+            "1:1": "1024x1024",
+            "16:9": "1672x941",
+            "9:16": "941x1672",
+            "4:3": "1443x1090",
+            "3:4": "1090x1443",
+            "4:5": "1120x1408",
+        }.get(ratio, "1024x1024")
+
     if quality == "1k":
         return {
             "1:1": "1024x1024",
@@ -85,22 +99,22 @@ def build_prompt(prompt, mode, ratio, quality, edit_mode, edit_brief, files):
     lines = [
         prompt.strip(),
         "",
-        f"画面比例：{ratio}",
-        f"清晰度需求：{quality.upper()}",
-        f"生成模式：{'图生图' if files or mode == 'image-to-image' else '文生图'}",
-        f"编辑方式：{edit_mode}",
-        "要求：真实自然，高级商业摄影质感，主体清晰，细节干净，不要水印，不要错字，不要畸形。",
+        f"鐢婚潰姣斾緥锛歿ratio}",
+        f"娓呮櫚搴﹂渶姹傦細{quality.upper()}",
+        f"鐢熸垚妯″紡锛歿'鍥剧敓鍥? if files or mode == 'image-to-image' else '鏂囩敓鍥?}",
+        f"缂栬緫鏂瑰紡锛歿edit_mode}",
+        "瑕佹眰锛氱湡瀹炶嚜鐒讹紝楂樼骇鍟嗕笟鎽勫奖璐ㄦ劅锛屼富浣撴竻鏅帮紝缁嗚妭骞插噣锛屼笉瑕佹按鍗帮紝涓嶈閿欏瓧锛屼笉瑕佺暩褰€?,
     ]
     if edit_brief.strip():
-        lines.extend(["替换/编辑要求：", edit_brief.strip()])
+        lines.extend(["鏇挎崲/缂栬緫瑕佹眰锛?, edit_brief.strip()])
     if files:
-        lines.append(f"参考图数量：{len(files)}。请尽量保持参考图中的产品结构、Logo 朝向、材质和关键识别点。")
+        lines.append(f"鍙傝€冨浘鏁伴噺锛歿len(files)}銆傚敖閲忎繚鎸佸弬鑰冨浘涓殑浜у搧缁撴瀯銆丩ogo 鏈濆悜銆佹潗璐ㄥ拰鍏抽敭璇嗗埆鐐广€?)
     return "\n".join(lines)
 
 
 def normalize_result(data):
     if not isinstance(data, dict):
-        raise RuntimeError("生图服务返回格式异常")
+        raise RuntimeError("鐢熷浘鏈嶅姟杩斿洖鏍煎紡寮傚父")
 
     results = data.get("results")
     if isinstance(results, list) and results:
@@ -129,15 +143,27 @@ def grsai_request(api_key, url, payload=None):
     headers = {"Authorization": f"Bearer {api_key}"}
     if payload is not None:
         headers["Content-Type"] = "application/json"
-    req = request.Request(url, data=body, headers=headers, method="POST" if payload is not None else "GET")
-    try:
-        with request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Grsai 返回 {exc.code}：{detail}") from exc
-    except error.URLError as exc:
-        raise RuntimeError(f"Grsai 网络错误：{exc.reason}") from exc
+
+    method = "POST" if payload is not None else "GET"
+    req = request.Request(url, data=body, headers=headers, method=method)
+    timeout = int(env("IMAGE_API_TIMEOUT", "180"))
+
+    last_error = None
+    for attempt in range(2):
+        try:
+            with request.urlopen(req, timeout=timeout) as resp:
+                text = resp.read().decode("utf-8")
+                return json.loads(text)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Grsai 杩斿洖 {exc.code}锛歿detail}") from exc
+        except (error.URLError, TimeoutError, socket.timeout) as exc:
+            last_error = exc
+            if attempt == 0:
+                continue
+
+    reason = getattr(last_error, "reason", last_error)
+    raise RuntimeError(f"Grsai 缃戠粶瓒呮椂鎴栬繛鎺ュけ璐ワ細{reason}")
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -148,7 +174,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/generate":
             self.handle_generate()
             return
-        self.send_json(404, {"error": "接口不存在"})
+        self.send_json(404, {"error": "鎺ュ彛涓嶅瓨鍦?})
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -165,17 +191,17 @@ class Handler(SimpleHTTPRequestHandler):
             return
         api_key = env("IMAGE_API_KEY")
         if not api_key:
-            self.send_json(500, {"error": "服务器没有配置 IMAGE_API_KEY"})
+            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃?IMAGE_API_KEY"})
             return
 
         try:
             fields, files = self.read_multipart()
             prompt = fields.get("prompt", "").strip()
             if not prompt:
-                self.send_json(400, {"error": "请输入提示词"})
+                self.send_json(400, {"error": "璇疯緭鍏ユ彁绀鸿瘝"})
                 return
 
-            quality = fields.get("quality", "2k")
+            quality = fields.get("quality", "1k")
             ratio = fields.get("ratio", "1:1")
             payload = {
                 "model": model_name(),
@@ -203,12 +229,12 @@ class Handler(SimpleHTTPRequestHandler):
             return
         api_key = env("IMAGE_API_KEY")
         if not api_key:
-            self.send_json(500, {"error": "服务器没有配置 IMAGE_API_KEY"})
+            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃?IMAGE_API_KEY"})
             return
 
         task_id = (parse_qs(parsed.query).get("id") or [""])[0].strip()
         if not task_id:
-            self.send_json(400, {"error": "缺少任务 ID"})
+            self.send_json(400, {"error": "缂哄皯浠诲姟 ID"})
             return
 
         try:
@@ -220,17 +246,17 @@ class Handler(SimpleHTTPRequestHandler):
     def authorized(self):
         password = env("MUSEFRAME_ACCESS_PASSWORD")
         if not password:
-            self.send_json(500, {"error": "服务器没有配置访问密码"})
+            self.send_json(500, {"error": "鏈嶅姟鍣ㄦ病鏈夐厤缃闂瘑鐮?})
             return False
         if self.headers.get("X-MuseFrame-Password", "").strip() != password:
-            self.send_json(403, {"error": "访问密码不正确"})
+            self.send_json(403, {"error": "璁块棶瀵嗙爜涓嶆纭?})
             return False
         return True
 
     def read_multipart(self):
         content_type = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in content_type:
-            raise ValueError("请求格式错误：需要 multipart/form-data")
+            raise ValueError("璇锋眰鏍煎紡閿欒锛氶渶瑕?multipart/form-data")
 
         content_length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(content_length)

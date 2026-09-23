@@ -31,6 +31,14 @@ def image_result_url(task_id):
     return f"{image_api_base()}/v1/api/result?id={task_id}"
 
 
+def allowed_origins():
+    values = env(
+        "MUSEFRAME_ALLOWED_ORIGINS",
+        "https://museframe-image-generator.onrender.com,http://127.0.0.1:8765,http://localhost:8765",
+    )
+    return {item.strip().rstrip("/") for item in values.split(",") if item.strip()}
+
+
 def model_name(value=""):
     return (value or env("IMAGE_MODEL", "gpt-image-2.5")).strip()
 
@@ -118,6 +126,20 @@ def grsai_request(api_key, url, payload=None):
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC_DIR), **kwargs)
+
+    def end_headers(self):
+        origin = (self.headers.get("Origin") or "").rstrip("/")
+        if origin in allowed_origins():
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Image-Api-Key")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.end_headers()
 
     def do_POST(self):
         if self.path == "/api/generate":

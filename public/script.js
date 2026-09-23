@@ -31,7 +31,7 @@ function init() {
   const savedKey = localStorage.getItem(KEY_STORE) || "";
   if (savedKey) {
     apiKeyInput.value = savedKey;
-    setBalance("Key 已设置", maskKey(savedKey));
+    setBalance("Key 已保存", maskKey(savedKey));
   }
 
   saveKeyButton.addEventListener("click", saveKey);
@@ -69,15 +69,15 @@ function saveKey() {
     return;
   }
   localStorage.setItem(KEY_STORE, key);
-  setBalance("Key 已设置", maskKey(key));
-  setMessage("API Key 已保存在当前浏览器。", "success");
+  setBalance("Key 已保存", maskKey(key));
+  setMessage("API Key 已保存到当前浏览器。", "success");
 }
 
 async function checkBalance() {
   const key = getKey();
   if (!key) return;
 
-  setBalance("检测中", "正在检测 Key 是否能用于当前接口。");
+  setBalance("检测中", "正在确认 Key 是否可用。");
   try {
     const data = await fetchJson("/api/balance", {
       method: "POST",
@@ -88,10 +88,10 @@ async function checkBalance() {
       body: JSON.stringify({model: modelInput.value}),
     });
     setBalance(data.balance || "Key 可用", data.detail || maskKey(key));
-    setMessage("Key 已保存。余额接口文档未开放，真实余额请看 Grsai 后台。", "success");
+    setMessage("Key 可用。真实余额请以 Grsai 后台为准。", "success");
   } catch (error) {
-    setBalance("Key 已设置", "未读取到余额接口，但不影响生图。");
-    setMessage(error.message, "error");
+    setBalance("检测失败", friendlyError(error));
+    setMessage(friendlyError(error), "error");
   }
 }
 
@@ -109,7 +109,10 @@ async function generate() {
   currentImageUrl = "";
   downloadButton.disabled = true;
   savePrompt(prompt);
-  showLoading("正在提交生图任务", referenceFiles.length ? "正在上传压缩后的参考图并连接 Grsai。" : "正在连接 Grsai 生图接口。");
+  showLoading(
+    "正在提交生图任务",
+    referenceFiles.length ? "正在上传参考图并连接 Grsai。" : "正在连接 Grsai 文生图接口。",
+  );
   setLoading(true, "生成中...");
 
   try {
@@ -191,7 +194,7 @@ function showError(prompt, detail) {
   imageStage.innerHTML = `
     <div class="empty">
       <strong>暂未生成成功</strong>
-      <span>${escapeHtml(detail || "请检查 API Key、模型或接口节点。")}</span>
+      <span>${escapeHtml(detail || "请检查 API Key、模型名称或接口节点。")}</span>
       <span>本次提示词：${escapeHtml(prompt.slice(0, 80))}${prompt.length > 80 ? "..." : ""}</span>
     </div>
   `;
@@ -210,7 +213,7 @@ async function addReferenceFiles(files) {
   referenceFiles = [...referenceFiles, ...optimized].slice(0, MAX_REFERENCE_FILES);
   modeLabel.textContent = referenceFiles.length ? "图生图模式" : "文生图模式";
   renderReferences();
-  setMessage(`已添加 ${referenceFiles.length} 张参考图，已自动压缩，上传更稳定。`, "success");
+  setMessage(`已添加 ${referenceFiles.length} 张参考图。`, "success");
 }
 
 function compressImage(file) {
@@ -262,8 +265,9 @@ function renderReferences() {
   referenceFiles.forEach((file, index) => {
     const item = document.createElement("div");
     item.className = "reference-item";
+    const previewUrl = URL.createObjectURL(file);
     item.innerHTML = `
-      <img src="${URL.createObjectURL(file)}" alt="参考图 ${index + 1}">
+      <img src="${previewUrl}" alt="参考图 ${index + 1}">
       <button type="button">×</button>
     `;
     item.querySelector("button").addEventListener("click", (event) => {
@@ -388,10 +392,10 @@ function maskKey(key) {
 function friendlyError(error) {
   const text = error?.message || String(error || "");
   if (text === "Failed to fetch") {
-    return "浏览器没有连上后端，请刷新页面后重试；如果是图生图，请减少参考图数量。";
+    return "浏览器没有连上后端，请确认打开的是 MuseFrame 正式网址并刷新页面。";
   }
   if (text.includes("timeout") || text.includes("timed out")) {
-    return "接口连接超时。已优化参考图压缩，请刷新后再试；参考图越少越稳定。";
+    return "接口连接超时。建议先用文生图测试，图生图时减少参考图数量。";
   }
   return text;
 }

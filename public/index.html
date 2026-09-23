@@ -19,20 +19,20 @@
       <div class="keybar">
         <input id="api-key" type="password" placeholder="输入 Grsai API Key">
         <button id="save-key" type="button">设置 API Key</button>
-        <button id="check-balance" class="soft" type="button">查询余额</button>
+        <button id="check-balance" class="soft" type="button">检测 Key</button>
       </div>
     </header>
 
     <section class="hero">
       <div>
-        <p class="eyebrow">AI IMAGE GENERATOR</p>
+        <p class="eyebrow">PRODUCT IMAGE STUDIO</p>
         <h1>MuseFrame</h1>
-        <p>输入提示词生成商品图；上传参考图后可做图生图。用于产品主图、场景图、广告素材、包装视觉和商单提案。</p>
+        <p>输入提示词生成商品图；上传参考图后可做图生图。适合产品主图、场景图、广告素材、包装视觉和商单提案。</p>
       </div>
       <aside class="balance-card">
-        <span>账户状态</span>
+        <span>连接状态</span>
         <strong id="balance-value">未设置 Key</strong>
-        <p id="balance-detail">API Key 只保存在当前浏览器本地。</p>
+        <p id="balance-detail">API Key 只保存在当前浏览器本地，也可以配置在服务端环境变量。</p>
       </aside>
     </section>
 
@@ -60,7 +60,7 @@
           <div id="upload-placeholder">
             <i>+</i>
             <b>点击上传 / 拖入参考图</b>
-            <span>可放产品图、Logo、材质图、场景参考图，多张也可以。</span>
+            <span>可放产品图、Logo、材质图、场景参考图，最多 8 张。</span>
           </div>
           <div class="reference-list" id="reference-list"></div>
         </label>

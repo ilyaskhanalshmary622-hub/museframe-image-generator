@@ -244,7 +244,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"Liu Yangjin image assistant running at http://127.0.0.1:{PORT}")
+    print(f"MuseFrame running at http://127.0.0.1:{PORT}")
     server.serve_forever()
 
 

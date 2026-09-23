@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: museframe-image-generator
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: IMAGE_API_BASE_URL
+        value: https://grsai.dakka.com.cn
+      - key: IMAGE_MODEL
+        value: gpt-image-2.5
+      - key: MUSEFRAME_ACCESS_PASSWORD
+        sync: false
+      - key: IMAGE_API_KEY
+        sync: false

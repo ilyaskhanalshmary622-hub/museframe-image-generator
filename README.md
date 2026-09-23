@@ -1,4 +1,4 @@
-# MuseFrame Image Generator
+# 刘扬金 AI 商品图生成助手
 
 一个独立的 Grsai 生图 Web 工具。
 

@@ -57,7 +57,7 @@
             <b>生成结果</b>
             <span id="mode-label">文生图模式</span>
           </div>
-          <button id="download-image" class="soft" type="button" disabled>下载图片</button>
+          <button id="download-image" class="soft" type="button" disabled>批量下载当前结果</button>
         </div>
         <div class="stage" id="image-stage">
           <div class="empty">
@@ -129,6 +129,20 @@
           <button id="generate" type="button">生成图片</button>
         </div>
       </section>
+    </section>
+
+    <section class="assets">
+      <div class="panel-head">
+        <div>
+          <b>最近 7 天生成资产</b>
+          <span>图片链接、提示词和参数会保存在当前浏览器，刷新页面不会丢。</span>
+        </div>
+        <div class="asset-actions">
+          <button id="download-assets" class="soft" type="button">批量下载全部</button>
+          <button id="clear-assets" class="soft danger-soft" type="button">清空资产</button>
+        </div>
+      </div>
+      <div id="asset-list" class="asset-list"></div>
     </section>
 
     <section class="history">

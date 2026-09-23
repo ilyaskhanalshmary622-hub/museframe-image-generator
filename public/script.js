@@ -20,16 +20,21 @@ const generateButton = document.querySelector("#generate");
 const clearButton = document.querySelector("#clear");
 const clearHistoryButton = document.querySelector("#clear-history");
 const downloadButton = document.querySelector("#download-image");
+const downloadAssetsButton = document.querySelector("#download-assets");
+const clearAssetsButton = document.querySelector("#clear-assets");
 const imageStage = document.querySelector("#image-stage");
 const message = document.querySelector("#message");
 const modeLabel = document.querySelector("#mode-label");
 const historyList = document.querySelector("#history-list");
+const assetList = document.querySelector("#asset-list");
 
 const KEY_STORE = "museframe-api-key";
 const HISTORY_STORE = "museframe-history";
+const ASSET_STORE = "museframe-assets";
 const ACCESS_STORE = "museframe-access-ok";
 const ACCESS_PASSWORD = "8611";
 const MAX_REFERENCE_FILES = 8;
+const ASSET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 let referenceFiles = [];
 let currentImageUrls = [];
@@ -51,6 +56,8 @@ function init() {
   clearButton.addEventListener("click", clearForm);
   clearHistoryButton.addEventListener("click", clearHistory);
   downloadButton.addEventListener("click", downloadCurrentImage);
+  downloadAssetsButton.addEventListener("click", downloadAllAssets);
+  clearAssetsButton.addEventListener("click", clearAssets);
 
   fileInput.addEventListener("change", async () => {
     await addReferenceFiles(fileInput.files);
@@ -71,6 +78,7 @@ function init() {
   });
 
   renderHistory();
+  renderAssets();
 }
 
 function initGate() {
@@ -236,6 +244,7 @@ async function fetchJson(url, options = {}) {
 
 function finish(imageUrls) {
   currentImageUrls = imageUrls;
+  saveAssetBatch(imageUrls);
   imageStage.innerHTML = `
     <div class="result-grid count-${Math.min(imageUrls.length, 4)}">
       ${imageUrls.map((url, index) => `
@@ -247,6 +256,7 @@ function finish(imageUrls) {
   `;
   downloadButton.disabled = false;
   setMessage(`生成完成，共 ${imageUrls.length} 张。`, "success");
+  renderAssets();
 }
 
 function showLoading(title, detail) {
@@ -422,13 +432,100 @@ function clearHistory() {
 
 function downloadCurrentImage() {
   if (!currentImageUrls.length) return;
-  currentImageUrls.forEach((url, index) => {
+  downloadUrls(currentImageUrls, "current");
+}
+
+function saveAssetBatch(imageUrls) {
+  const prompt = promptInput.value.trim();
+  const item = {
+    id: `asset-${Date.now()}`,
+    urls: imageUrls,
+    prompt,
+    model: modelInput.value,
+    ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
+    count: imageUrls.length,
+    createdAt: Date.now(),
+  };
+  const assets = pruneAssets([item, ...getAssets()]);
+  localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
+}
+
+function getAssets() {
+  try {
+    return pruneAssets(JSON.parse(localStorage.getItem(ASSET_STORE)) || []);
+  } catch {
+    return [];
+  }
+}
+
+function pruneAssets(assets) {
+  const minTime = Date.now() - ASSET_RETENTION_MS;
+  return assets
+    .filter((item) => item && item.createdAt >= minTime && Array.isArray(item.urls) && item.urls.length)
+    .slice(0, 80);
+}
+
+function renderAssets() {
+  const assets = getAssets();
+  localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
+
+  if (!assets.length) {
+    assetList.innerHTML = `<div class="history-empty">最近 7 天还没有生成资产。</div>`;
+    downloadAssetsButton.disabled = true;
+    return;
+  }
+
+  downloadAssetsButton.disabled = false;
+  assetList.innerHTML = assets.map((item) => `
+    <article class="asset-item">
+      <div class="asset-thumbs">
+        ${item.urls.slice(0, 4).map((url, index) => `
+          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+            <img src="${escapeHtml(url)}" alt="资产 ${index + 1}">
+          </a>
+        `).join("")}
+      </div>
+      <div class="asset-meta">
+        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.urls.length} 张</b>
+        <small>${escapeHtml(formatTime(item.createdAt))}</small>
+        <p>${escapeHtml(item.prompt || "未记录提示词")}</p>
+        <button type="button" data-asset-id="${escapeHtml(item.id)}">下载这一组</button>
+      </div>
+    </article>
+  `).join("");
+
+  assetList.querySelectorAll("[data-asset-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = getAssets().find((item) => item.id === button.dataset.assetId);
+      if (target) downloadUrls(target.urls, target.id);
+    });
+  });
+}
+
+function downloadAllAssets() {
+  const urls = getAssets().flatMap((item) => item.urls);
+  if (!urls.length) return;
+  downloadUrls(urls, "7days");
+}
+
+function clearAssets() {
+  localStorage.removeItem(ASSET_STORE);
+  renderAssets();
+  setMessage("最近 7 天资产记录已清空。");
+}
+
+function downloadUrls(urls, label) {
+  urls.forEach((url, index) => {
     const link = document.createElement("a");
     link.href = url;
-    link.download = `museframe-${Date.now()}-${index + 1}.png`;
+    link.download = `museframe-${label}-${index + 1}.png`;
     link.target = "_blank";
     link.click();
   });
+}
+
+function formatTime(value) {
+  return new Date(value).toLocaleString("zh-CN", {hour12: false});
 }
 
 function getKey() {

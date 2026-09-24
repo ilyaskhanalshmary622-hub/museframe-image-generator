@@ -619,10 +619,16 @@ function downloadUrls(urls, label) {
   urls.forEach((url, index) => {
     const link = document.createElement("a");
     link.href = url;
-    link.download = `museframe-${label}-${index + 1}.png`;
+    link.download = `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`;
     link.target = "_blank";
     link.click();
   });
+}
+
+function fileExtensionFor(url) {
+  const match = String(url).match(/\.(mp4|mov|webm|m4v|png|jpg|jpeg)(?=($|\?))/i);
+  if (!match) return "png";
+  return match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
 }
 
 function formatTime(value) {

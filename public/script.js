@@ -192,7 +192,7 @@ function saveKey() {
   }
   localStorage.setItem(KEY_STORE, key);
   setBalance("Key 已保存", maskKey(key));
-  setMessage("API Key 已保存到当前浏览器。", "success");
+  setMessage("你的 Key 已保存到当前浏览器。别人使用时需要输入自己的 Key。", "success");
 }
 
 async function checkBalance() {
@@ -670,10 +670,10 @@ function friendlyError(error) {
   const text = error?.message || String(error || "");
   const lower = text.toLowerCase();
   if (lower.includes("apikey expired")) {
-    return "Grsai API Key 已过期。请到 Render 的 Environment 里更新 IMAGE_API_KEY，然后重新部署。";
+    return "这个 Grsai API Key 已过期或额度不可用。请换一个新的 Key 后重试。";
   }
   if (lower.includes("apikey error") || lower.includes("invalid api key")) {
-    return "Grsai API Key 不可用。请确认 Render 里的 IMAGE_API_KEY 是完整新 Key，没有空格、引号或复制遗漏。";
+    return "Grsai API Key 不可用。请确认输入的是完整 Key，没有空格、引号或复制遗漏。";
   }
   if (text === "Failed to fetch") {
     return "浏览器没有连上后端，请确认打开的是 MuseFrame 正式网址并刷新页面。";

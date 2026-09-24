@@ -303,7 +303,7 @@ class Handler(SimpleHTTPRequestHandler):
         )
 
     def image_api_key(self):
-        return self.headers.get("X-Image-Api-Key", "").strip() or env("IMAGE_API_KEY")
+        return self.headers.get("X-Image-Api-Key", "").strip()
 
     def read_multipart(self):
         content_type = self.headers.get("Content-Type", "")

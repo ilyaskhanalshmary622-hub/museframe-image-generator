@@ -542,6 +542,53 @@ button.soft {
 
 .assets {
   margin-top: 16px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.drawer-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.drawer-summary::-webkit-details-marker {
+  display: none;
+}
+
+.drawer-summary b,
+.drawer-summary strong {
+  display: block;
+}
+
+.drawer-summary span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.drawer-summary strong {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--blue);
+  background: #f5faff;
+  font-size: 13px;
+}
+
+.asset-panel-head,
+.asset-list {
+  padding: 0 20px 20px;
+}
+
+.asset-panel-head {
+  padding-top: 4px;
 }
 
 .asset-actions {
@@ -638,6 +685,22 @@ button.soft {
 .history-item p {
   color: var(--muted);
   line-height: 1.65;
+}
+
+.prompt-full {
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #d8e8fb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .history-item button {

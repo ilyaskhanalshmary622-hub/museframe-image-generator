@@ -2,12 +2,13 @@
 import json
 import os
 import socket
+import mimetypes
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib import error, request
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 
 ROOT = Path(__file__).resolve().parent
@@ -211,6 +212,9 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/health":
             self.send_json(200, {"ok": True, "model": model_name(), "baseUrl": image_api_base()})
             return
+        if parsed.path == "/api/download":
+            self.handle_download(parsed)
+            return
         super().do_GET()
 
     def handle_generate(self):
@@ -307,6 +311,45 @@ class Handler(SimpleHTTPRequestHandler):
                 "detail": "Balance API is not included in the current Grsai docs. Generation is available.",
             },
         )
+
+    def handle_download(self, parsed):
+        params = parse_qs(parsed.query)
+        target_url = (params.get("url") or [""])[0].strip()
+        filename = (params.get("name") or ["museframe-asset"])[0].strip() or "museframe-asset"
+        parsed_target = urlparse(target_url)
+        allowed_hosts = {
+            item.strip().lower()
+            for item in env("MUSEFRAME_DOWNLOAD_HOSTS", "file1.aitohumanize.com,file.aitohumanize.com").split(",")
+            if item.strip()
+        }
+        host = (parsed_target.hostname or "").lower()
+        if parsed_target.scheme != "https" or host not in allowed_hosts:
+            self.send_json(400, {"error": "This file host is not allowed for direct download"})
+            return
+
+        try:
+            req = request.Request(target_url, headers={"User-Agent": "MuseFrame/1.0"})
+            with request.urlopen(req, timeout=120) as resp:
+                content_length = int(resp.headers.get("Content-Length", "0") or "0")
+                if content_length > 350 * 1024 * 1024:
+                    self.send_json(413, {"error": "File is too large to proxy download"})
+                    return
+                content = resp.read()
+                content_type = resp.headers.get_content_type() or mimetypes.guess_type(target_url)[0] or "application/octet-stream"
+        except Exception as exc:
+            self.send_json(502, {"error": f"Download failed: {exc}"})
+            return
+
+        safe_name = "".join(char for char in filename if char.isalnum() or char in "._-")[:120] or "museframe-asset"
+        if "." not in safe_name:
+            safe_name += mimetypes.guess_extension(content_type) or ""
+
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(safe_name)}")
+        self.end_headers()
+        self.wfile.write(content)
 
     def image_api_key(self, fields=None):
         fields = fields or {}

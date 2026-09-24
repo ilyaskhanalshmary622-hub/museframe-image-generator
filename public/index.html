@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MuseFrame</title>
-  <link rel="stylesheet" href="./style.css?v=20260924-video-fix">
+  <link rel="stylesheet" href="./style.css?v=20260924-ux-download">
 </head>
 <body>
   <section id="access-gate" class="access-gate">
@@ -155,8 +155,15 @@
       </section>
     </section>
 
-    <section class="assets">
-      <div class="panel-head">
+    <details class="assets" id="asset-drawer">
+      <summary class="drawer-summary">
+        <div>
+          <b>最近 7 天生成资产</b>
+          <span>点击查看图片、视频、提示词和批量下载。</span>
+        </div>
+        <strong id="asset-count">0 个资产</strong>
+      </summary>
+      <div class="panel-head asset-panel-head">
         <div>
           <b>最近 7 天生成资产</b>
           <span>图片链接、提示词和参数会保存在当前浏览器，刷新页面不会丢。</span>
@@ -167,7 +174,7 @@
         </div>
       </div>
       <div id="asset-list" class="asset-list"></div>
-    </section>
+    </details>
 
     <section class="history">
       <div class="panel-head">
@@ -181,6 +188,6 @@
     </section>
   </main>
 
-  <script src="./script.js?v=20260924-video-fix"></script>
+  <script src="./script.js?v=20260924-ux-download"></script>
 </body>
 </html>

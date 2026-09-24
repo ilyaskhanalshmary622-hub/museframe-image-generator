@@ -29,6 +29,7 @@ const clearHistoryButton = document.querySelector("#clear-history");
 const downloadButton = document.querySelector("#download-image");
 const downloadAssetsButton = document.querySelector("#download-assets");
 const clearAssetsButton = document.querySelector("#clear-assets");
+const assetCount = document.querySelector("#asset-count");
 const imageStage = document.querySelector("#image-stage");
 const message = document.querySelector("#message");
 const modeLabel = document.querySelector("#mode-label");
@@ -503,12 +504,27 @@ function renderHistory() {
   historyList.innerHTML = history.map((item) => `
     <article class="history-item">
       <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${escapeHtml(item.count || "1")}张</b>
-      <p>${escapeHtml(item.prompt)}</p>
-      <button type="button" data-prompt="${escapeHtml(item.prompt)}">复用提示词</button>
+      <p class="prompt-preview">${escapeHtml(shortText(item.prompt, 88))}</p>
+      <p class="prompt-full hidden">${escapeHtml(item.prompt)}</p>
+      <div class="history-actions">
+        <button class="soft toggle-prompt" type="button">展开全文</button>
+        <button type="button" data-prompt="${escapeHtml(item.prompt)}">复用提示词</button>
+      </div>
     </article>
   `).join("");
 
-  historyList.querySelectorAll("button").forEach((button) => {
+  historyList.querySelectorAll(".toggle-prompt").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = button.closest(".history-item");
+      const preview = card.querySelector(".prompt-preview");
+      const full = card.querySelector(".prompt-full");
+      const expanded = full.classList.toggle("hidden") === false;
+      preview.classList.toggle("hidden", expanded);
+      button.textContent = expanded ? "收起" : "展开全文";
+    });
+  });
+
+  historyList.querySelectorAll("[data-prompt]").forEach((button) => {
     button.addEventListener("click", () => {
       promptInput.value = button.dataset.prompt || "";
       promptInput.focus();
@@ -563,6 +579,10 @@ function pruneAssets(assets) {
 function renderAssets() {
   const assets = getAssets();
   localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
+  const total = assets.reduce((sum, item) => sum + item.urls.length, 0);
+  if (assetCount) {
+    assetCount.textContent = total ? `${total} 个资产` : "0 个资产";
+  }
 
   if (!assets.length) {
     assetList.innerHTML = `<div class="history-empty">最近 7 天还没有生成资产。</div>`;
@@ -575,7 +595,7 @@ function renderAssets() {
     <article class="asset-item">
       <div class="asset-thumbs">
         ${item.urls.slice(0, 4).map((url, index) => `
-          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+          <a href="${downloadHref(url, `${item.id}-${index + 1}.${fileExtensionFor(url)}`)}" download>
             ${item.mediaType === "video"
               ? `<video src="${escapeHtml(url)}" muted playsinline></video>`
               : `<img src="${escapeHtml(url)}" alt="资产 ${index + 1}">`}
@@ -614,11 +634,14 @@ function clearAssets() {
 function downloadUrls(urls, label) {
   urls.forEach((url, index) => {
     const link = document.createElement("a");
-    link.href = url;
+    link.href = downloadHref(url, `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`);
     link.download = `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`;
-    link.target = "_blank";
     link.click();
   });
+}
+
+function downloadHref(url, filename) {
+  return `/api/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(filename)}`;
 }
 
 function fileExtensionFor(url) {
@@ -682,6 +705,11 @@ function friendlyError(error) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shortText(value, limit = 80) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
 function escapeHtml(value) {

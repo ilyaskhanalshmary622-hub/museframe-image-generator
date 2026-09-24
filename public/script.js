@@ -672,7 +672,7 @@ function friendlyError(error) {
     return "Grsai API Key 不可用。请确认输入的是完整 Key，没有空格、引号或复制遗漏。";
   }
   if (text === "Failed to fetch") {
-    return "浏览器没有连上后端，请确认打开的是 MuseFrame 正式网址并刷新页面。";
+    return "当前页面没有连到 MuseFrame 后端。请只打开正式网址，不要打开 GitHub、file 本地页或旧链接；如果已经是正式网址，请按 Ctrl+F5 强制刷新。";
   }
   if (text.includes("timeout") || text.includes("timed out")) {
     return "接口连接超时。建议先用文生图测试，图生图时减少参考图数量。";

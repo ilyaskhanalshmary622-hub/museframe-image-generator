@@ -235,12 +235,16 @@ class Handler(SimpleHTTPRequestHandler):
                 files=files,
             )
             if media_type == "video":
+                video_resolution = safe_video_resolution(fields.get("resolution", ""))
+                video_duration = safe_video_duration(fields.get("duration", ""))
+                if video_resolution == "1080p" and video_duration > 10:
+                    video_duration = 10
                 common_payload = {
                     "model": selected_model or "minimax-h3",
                     "images": [file["dataUrl"] for file in files],
                     "aspectRatio": safe_video_aspect_ratio(fields.get("aspectRatio", "")),
-                    "resolution": safe_video_resolution(fields.get("resolution", "")),
-                    "duration": safe_video_duration(fields.get("duration", "")),
+                    "resolution": video_resolution,
+                    "duration": video_duration,
                     "replyType": "async",
                 }
             else:

@@ -214,13 +214,13 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def handle_generate(self):
-        api_key = self.image_api_key()
-        if not api_key:
-            self.send_json(400, {"error": "Please set Grsai API Key first"})
-            return
-
         try:
             fields, files = self.read_multipart()
+            api_key = self.image_api_key(fields)
+            if not api_key:
+                self.send_json(400, {"error": "Please set Grsai API Key first"})
+                return
+
             prompt = fields.get("prompt", "").strip()
             if not prompt:
                 self.send_json(400, {"error": "Prompt is required"})
@@ -290,7 +290,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(500, {"error": str(exc)})
 
     def handle_balance(self):
-        api_key = self.image_api_key()
+        fields = {}
+        try:
+            if "multipart/form-data" in self.headers.get("Content-Type", ""):
+                fields, _files = self.read_multipart()
+        except Exception:
+            fields = {}
+        api_key = self.image_api_key(fields)
         if not api_key:
             self.send_json(400, {"error": "Please set Grsai API Key first"})
             return
@@ -302,8 +308,9 @@ class Handler(SimpleHTTPRequestHandler):
             },
         )
 
-    def image_api_key(self):
-        return self.headers.get("X-Image-Api-Key", "").strip()
+    def image_api_key(self, fields=None):
+        fields = fields or {}
+        return self.headers.get("X-Image-Api-Key", "").strip() or fields.get("apiKey", "").strip()
 
     def read_multipart(self):
         content_type = self.headers.get("Content-Type", "")

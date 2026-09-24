@@ -201,14 +201,10 @@ async function checkBalance() {
 
   setBalance("检测中", "正在确认 Key 是否可用。");
   try {
-    const data = await fetchJson("/api/balance", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Image-Api-Key": key,
-      },
-      body: JSON.stringify({model: modelInput.value}),
-    });
+    const formData = new FormData();
+    formData.append("apiKey", key);
+    formData.append("model", modelInput.value);
+    const data = await postForm("/api/balance", formData);
     setBalance(data.balance || "Key 可用", data.detail || maskKey(key));
     setMessage("Key 可用。真实余额请以 Grsai 后台为准。", "success");
   } catch (error) {
@@ -247,9 +243,10 @@ async function generate() {
     formData.append("resolution", videoResolutionInput.value);
     formData.append("duration", videoDurationInput.value);
     formData.append("mode", referenceFiles.length ? `${activeTool}-with-reference` : `${activeTool}-text`);
+    formData.append("apiKey", key);
     referenceFiles.forEach((file) => formData.append("images", file));
 
-    const created = await postForm("/api/generate", formData, key);
+    const created = await postForm("/api/generate", formData);
     const taskIds = normalizeTaskIds(created);
     const directImages = normalizeImageUrls(created);
     if (directImages.length) {
@@ -279,10 +276,9 @@ function normalizeImageUrls(data) {
   return data?.imageUrl ? [data.imageUrl] : [];
 }
 
-async function postForm(url, formData, key) {
+async function postForm(url, formData) {
   const response = await fetch(url, {
     method: "POST",
-    headers: {"X-Image-Api-Key": key},
     body: formData,
   });
   const data = await response.json().catch(() => ({}));

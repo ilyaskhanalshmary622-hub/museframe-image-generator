@@ -157,6 +157,9 @@ class Handler(SimpleHTTPRequestHandler):
         if origin in allowed_origins():
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Image-Api-Key")
         self.send_header("Access-Control-Max-Age", "86400")

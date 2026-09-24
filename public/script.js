@@ -561,6 +561,13 @@ function maskKey(key) {
 
 function friendlyError(error) {
   const text = error?.message || String(error || "");
+  const lower = text.toLowerCase();
+  if (lower.includes("apikey expired")) {
+    return "Grsai API Key 已过期。请到 Render 的 Environment 里更新 IMAGE_API_KEY，然后重新部署。";
+  }
+  if (lower.includes("apikey error") || lower.includes("invalid api key")) {
+    return "Grsai API Key 不可用。请确认 Render 里的 IMAGE_API_KEY 是完整新 Key，没有空格、引号或复制遗漏。";
+  }
   if (text === "Failed to fetch") {
     return "浏览器没有连上后端，请确认打开的是 MuseFrame 正式网址并刷新页面。";
   }

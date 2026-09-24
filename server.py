@@ -62,6 +62,18 @@ def safe_image_count(value):
         return 1
 
 
+def safe_video_duration(value):
+    try:
+        return min(15, max(1, int(value)))
+    except (TypeError, ValueError):
+        return 5
+
+
+def safe_video_resolution(value):
+    value = (value or "").strip()
+    return value if value in {"480p", "768p", "1080p"} else "768p"
+
+
 def safe_aspect_ratio(value, model):
     allowed = {
         "1024x1024",
@@ -78,6 +90,19 @@ def safe_aspect_ratio(value, model):
     }
     value = (value or "").strip()
     return value if value in allowed else image_size(model)
+
+
+def safe_video_aspect_ratio(value):
+    value = (value or "").strip().lower()
+    if value in {"portrait", "landscape"}:
+        return value
+    if "x" in value:
+        try:
+            width, height = [int(item) for item in value.split("x", 1)]
+            return "portrait" if height > width else "landscape"
+        except ValueError:
+            pass
+    return "portrait"
 
 
 def build_prompt(prompt, mode, files):
@@ -201,34 +226,45 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(400, {"error": "Prompt is required"})
                 return
 
+            media_type = fields.get("mediaType", "image").strip().lower()
             selected_model = model_name(fields.get("model", ""))
-            count = safe_image_count(fields.get("count", "1"))
+            count = 1 if media_type == "video" else safe_image_count(fields.get("count", "1"))
             prompt_text = build_prompt(
                 prompt=prompt,
                 mode=fields.get("mode", "text-to-image"),
                 files=files,
             )
-            common_payload = {
-                "model": selected_model,
-                "images": [file["dataUrl"] for file in files],
-                "aspectRatio": safe_aspect_ratio(fields.get("aspectRatio", ""), selected_model),
-                "quality": image_quality(selected_model),
-                "replyType": "async",
-            }
+            if media_type == "video":
+                common_payload = {
+                    "model": selected_model or "minimax-h3",
+                    "images": [file["dataUrl"] for file in files],
+                    "aspectRatio": safe_video_aspect_ratio(fields.get("aspectRatio", "")),
+                    "resolution": safe_video_resolution(fields.get("resolution", "")),
+                    "duration": safe_video_duration(fields.get("duration", "")),
+                    "replyType": "async",
+                }
+            else:
+                common_payload = {
+                    "model": selected_model,
+                    "images": [file["dataUrl"] for file in files],
+                    "aspectRatio": safe_aspect_ratio(fields.get("aspectRatio", ""), selected_model),
+                    "quality": image_quality(selected_model),
+                    "replyType": "async",
+                }
             results = []
             for index in range(count):
                 payload = {
                     **common_payload,
-                    "prompt": f"{prompt_text}\n\nVariation index: {index + 1}. Keep the same brief, but create a distinct usable version.",
+                    "prompt": prompt_text if media_type == "video" else f"{prompt_text}\n\nVariation index: {index + 1}. Keep the same brief, but create a distinct usable version.",
                 }
                 results.append(normalize_result(grsai_request(api_key, image_api_url(), payload)))
 
             images = [item["imageUrl"] for item in results if item.get("imageUrl")]
             tasks = [{"taskId": item["taskId"]} for item in results if item.get("taskId")]
             if len(results) == 1:
-                self.send_json(200, results[0])
+                self.send_json(200, {**results[0], "mediaType": media_type})
             else:
-                self.send_json(200, {"status": "running", "tasks": tasks, "images": images})
+                self.send_json(200, {"status": "running", "tasks": tasks, "images": images, "mediaType": media_type})
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 

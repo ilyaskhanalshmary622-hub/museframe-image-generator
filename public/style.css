@@ -152,6 +152,36 @@ button, input, textarea, select { font: inherit; }
   outline: none;
 }
 
+.tool-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.7);
+}
+
+.tool-tab {
+  min-width: 88px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tool-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--blue), var(--blue-2));
+  box-shadow: 0 12px 28px rgba(45, 127, 249, .22);
+}
+
+.hidden {
+  display: none !important;
+}
+
 .hero,
 .result-panel,
 .control-panel,
@@ -266,6 +296,13 @@ button, input, textarea, select { font: inherit; }
   max-width: 100%;
   max-height: 760px;
   object-fit: contain;
+}
+
+.stage video {
+  width: 100%;
+  max-height: 760px;
+  border-radius: 18px;
+  background: #0b1220;
 }
 
 .result-grid {
@@ -545,7 +582,8 @@ button.soft {
   border: 1px solid #e2eefb;
 }
 
-.asset-thumbs img {
+.asset-thumbs img,
+.asset-thumbs video {
   width: 100%;
   height: 100%;
   object-fit: cover;

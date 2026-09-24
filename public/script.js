@@ -8,13 +8,20 @@ const saveKeyButton = document.querySelector("#save-key");
 const checkBalanceButton = document.querySelector("#check-balance");
 const balanceValue = document.querySelector("#balance-value");
 const balanceDetail = document.querySelector("#balance-detail");
+const toolTabs = document.querySelectorAll(".tool-tab");
+const heroEyebrow = document.querySelector("#hero-eyebrow");
+const heroCopy = document.querySelector("#hero-copy");
 const fileInput = document.querySelector("#reference-file");
 const dropZone = document.querySelector("#drop-zone");
 const referenceList = document.querySelector("#reference-list");
 const uploadPlaceholder = document.querySelector("#upload-placeholder");
+const uploadTitle = document.querySelector("#upload-title");
+const uploadDesc = document.querySelector("#upload-desc");
 const modelInput = document.querySelector("#model");
 const aspectRatioInput = document.querySelector("#aspect-ratio");
 const imageCountInput = document.querySelector("#image-count");
+const videoResolutionInput = document.querySelector("#video-resolution");
+const videoDurationInput = document.querySelector("#video-duration");
 const promptInput = document.querySelector("#prompt");
 const generateButton = document.querySelector("#generate");
 const clearButton = document.querySelector("#clear");
@@ -38,6 +45,38 @@ const ASSET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 let referenceFiles = [];
 let currentImageUrls = [];
+let activeTool = "image";
+
+const IMAGE_MODELS = [
+  ["gpt-image-2.5", "gpt-image-2.5"],
+  ["gpt-image-2", "gpt-image-2"],
+  ["gpt-image-2-vip", "gpt-image-2-vip"],
+  ["gpt-image-2.5-flare", "gpt-image-2.5-flare"],
+  ["gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst"],
+];
+
+const VIDEO_MODELS = [
+  ["minimax-h3", "minimax-h3"],
+];
+
+const IMAGE_RATIOS = [
+  ["1024x1024", "1:1 方图"],
+  ["1280x720", "16:9 横版"],
+  ["720x1280", "9:16 竖版"],
+  ["1152x864", "4:3 横版"],
+  ["864x1152", "3:4 竖版"],
+  ["1536x1024", "3:2 横版"],
+  ["1024x1536", "2:3 竖版"],
+  ["1120x896", "5:4 横版"],
+  ["896x1120", "4:5 竖版"],
+  ["1920x832", "21:9 超宽"],
+  ["832x1920", "9:21 长竖"],
+];
+
+const VIDEO_RATIOS = [
+  ["portrait", "9:16 竖屏"],
+  ["landscape", "16:9 横屏"],
+];
 
 init();
 
@@ -58,6 +97,9 @@ function init() {
   downloadButton.addEventListener("click", downloadCurrentImage);
   downloadAssetsButton.addEventListener("click", downloadAllAssets);
   clearAssetsButton.addEventListener("click", clearAssets);
+  toolTabs.forEach((tab) => {
+    tab.addEventListener("click", () => setActiveTool(tab.dataset.tool || "image"));
+  });
 
   fileInput.addEventListener("change", async () => {
     await addReferenceFiles(fileInput.files);
@@ -79,6 +121,7 @@ function init() {
 
   renderHistory();
   renderAssets();
+  setActiveTool("image");
 }
 
 function initGate() {
@@ -106,6 +149,39 @@ function verifyAccess() {
 function unlockApp() {
   accessGate.classList.add("hidden");
   appShell.classList.remove("locked");
+}
+
+function setActiveTool(tool) {
+  activeTool = tool === "video" ? "video" : "image";
+  toolTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tool === activeTool));
+
+  document.querySelectorAll(".image-only").forEach((item) => item.classList.toggle("hidden", activeTool !== "image"));
+  document.querySelectorAll(".video-only").forEach((item) => item.classList.toggle("hidden", activeTool !== "video"));
+
+  const models = activeTool === "video" ? VIDEO_MODELS : IMAGE_MODELS;
+  const ratios = activeTool === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
+  modelInput.innerHTML = models.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  aspectRatioInput.innerHTML = ratios.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+
+  if (activeTool === "video") {
+    heroEyebrow.textContent = "AI VIDEO STUDIO";
+    heroCopy.textContent = "输入视频脚本或上传首帧/参考图，生成短视频素材。适合广告短片、产品展示、剧情钩子和投放素材测试。";
+    uploadTitle.textContent = "点击上传 / 拖入首帧或参考图";
+    uploadDesc.textContent = "可放产品图、角色图、首帧图、场景参考图，最多 8 张。";
+    promptInput.placeholder = "例如：8秒竖屏短视频，一个年轻女性在极简卧室里打开高级收纳盒，镜头从近景推入，展示产品材质和容量，真实商业广告质感。";
+    generateButton.textContent = "生成视频";
+  } else {
+    heroEyebrow.textContent = "PRODUCT IMAGE STUDIO";
+    heroCopy.textContent = "输入提示词生成商品图；上传参考图后可做图生图。适合产品主图、场景图、广告素材、包装视觉和商单提案。";
+    uploadTitle.textContent = "点击上传 / 拖入参考图";
+    uploadDesc.textContent = "可放产品图、Logo、材质图、场景参考图，最多 8 张。";
+    promptInput.placeholder = "例如：生成一张高级真实的真空压缩收纳袋商品图，暖米白背景，鼠尾草绿文字，产品正面朝前，质感清晰，1:1 电商主图风格。";
+    generateButton.textContent = "生成图片";
+  }
+
+  modeLabel.textContent = referenceFiles.length
+    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
+    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
 }
 
 function saveKey() {
@@ -156,18 +232,21 @@ async function generate() {
   downloadButton.disabled = true;
   savePrompt(prompt);
   showLoading(
-    "正在提交生图任务",
-    referenceFiles.length ? "正在上传参考图并连接 Grsai。" : "正在连接 Grsai 文生图接口。",
+    activeTool === "video" ? "正在提交视频任务" : "正在提交生图任务",
+    referenceFiles.length ? "正在上传参考图并连接 Grsai。" : `正在连接 Grsai ${activeTool === "video" ? "生视频" : "文生图"}接口。`,
   );
-  setLoading(true, "生成中...");
+  setLoading(true, activeTool === "video" ? "生成视频中..." : "生成中...");
 
   try {
     const formData = new FormData();
+    formData.append("mediaType", activeTool);
     formData.append("prompt", prompt);
     formData.append("model", modelInput.value);
     formData.append("aspectRatio", aspectRatioInput.value);
-    formData.append("count", imageCountInput.value);
-    formData.append("mode", referenceFiles.length ? "image-to-image" : "text-to-image");
+    formData.append("count", activeTool === "video" ? "1" : imageCountInput.value);
+    formData.append("resolution", videoResolutionInput.value);
+    formData.append("duration", videoDurationInput.value);
+    formData.append("mode", referenceFiles.length ? `${activeTool}-with-reference` : `${activeTool}-text`);
     referenceFiles.forEach((file) => formData.append("images", file));
 
     const created = await postForm("/api/generate", formData, key);
@@ -177,7 +256,7 @@ async function generate() {
       finish(directImages);
       return;
     }
-    if (!taskIds.length) throw new Error("生图接口没有返回任务 ID。");
+    if (!taskIds.length) throw new Error(`${activeTool === "video" ? "生视频" : "生图"}接口没有返回任务 ID。`);
 
     const resultUrls = await pollTasks(taskIds, key);
     finish(resultUrls);
@@ -216,7 +295,10 @@ async function pollTasks(taskIds, key) {
   const images = [];
   for (let i = 1; i <= 120; i += 1) {
     await sleep(3000);
-    showLoading("正在生成图片", `已完成 ${images.length}/${taskIds.length} 张，正在第 ${i} 次查询结果。`);
+    showLoading(
+      activeTool === "video" ? "正在生成视频" : "正在生成图片",
+      `已完成 ${images.length}/${taskIds.length} 个结果，正在第 ${i} 次查询。`,
+    );
 
     for (const taskId of Array.from(remaining)) {
       const data = await fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
@@ -245,17 +327,19 @@ async function fetchJson(url, options = {}) {
 function finish(imageUrls) {
   currentImageUrls = imageUrls;
   saveAssetBatch(imageUrls);
-  imageStage.innerHTML = `
-    <div class="result-grid count-${Math.min(imageUrls.length, 4)}">
-      ${imageUrls.map((url, index) => `
-        <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
-          <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
-        </a>
-      `).join("")}
-    </div>
-  `;
+  imageStage.innerHTML = activeTool === "video"
+    ? `<div class="result-grid count-1">${imageUrls.map((url) => `
+        <video src="${escapeHtml(url)}" controls playsinline></video>
+      `).join("")}</div>`
+    : `<div class="result-grid count-${Math.min(imageUrls.length, 4)}">
+        ${imageUrls.map((url, index) => `
+          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+            <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
+          </a>
+        `).join("")}
+      </div>`;
   downloadButton.disabled = false;
-  setMessage(`生成完成，共 ${imageUrls.length} 张。`, "success");
+  setMessage(activeTool === "video" ? "视频生成完成。" : `生成完成，共 ${imageUrls.length} 张。`, "success");
   renderAssets();
 }
 
@@ -290,7 +374,9 @@ async function addReferenceFiles(files) {
   }
 
   referenceFiles = [...referenceFiles, ...optimized].slice(0, MAX_REFERENCE_FILES);
-  modeLabel.textContent = referenceFiles.length ? "图生图模式" : "文生图模式";
+  modeLabel.textContent = referenceFiles.length
+    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
+    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
   renderReferences();
   setMessage(`已添加 ${referenceFiles.length} 张参考图。`, "success");
 }
@@ -340,6 +426,9 @@ function renderReferences() {
   count.className = "reference-count";
   count.textContent = `已添加 ${referenceFiles.length} 张参考图`;
   referenceList.appendChild(count);
+  modeLabel.textContent = referenceFiles.length
+    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
+    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
 
   referenceFiles.forEach((file, index) => {
     const item = document.createElement("div");
@@ -353,7 +442,9 @@ function renderReferences() {
       event.preventDefault();
       event.stopPropagation();
       referenceFiles.splice(index, 1);
-      modeLabel.textContent = referenceFiles.length ? "图生图模式" : "文生图模式";
+      modeLabel.textContent = referenceFiles.length
+        ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
+        : (activeTool === "video" ? "文生视频模式" : "文生图模式");
       renderReferences();
     });
     referenceList.appendChild(item);
@@ -365,7 +456,7 @@ function clearForm() {
   referenceFiles = [];
   currentImageUrls = [];
   downloadButton.disabled = true;
-  modeLabel.textContent = "文生图模式";
+  modeLabel.textContent = activeTool === "video" ? "文生视频模式" : "文生图模式";
   renderReferences();
   imageStage.innerHTML = `
     <div class="empty">
@@ -380,10 +471,15 @@ function savePrompt(prompt) {
   const history = getHistory();
   const item = {
     prompt,
-    mode: referenceFiles.length ? "图生图" : "文生图",
+    mode: referenceFiles.length
+      ? (activeTool === "video" ? "图生视频" : "图生图")
+      : (activeTool === "video" ? "文生视频" : "文生图"),
     model: modelInput.value,
     ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
-    count: imageCountInput.value,
+    count: activeTool === "video" ? "1" : imageCountInput.value,
+    mediaType: activeTool,
+    duration: activeTool === "video" ? videoDurationInput.value : "",
+    resolution: activeTool === "video" ? videoResolutionInput.value : "",
     time: new Date().toLocaleString("zh-CN", {hour12: false}),
   };
   localStorage.setItem(
@@ -444,6 +540,9 @@ function saveAssetBatch(imageUrls) {
     model: modelInput.value,
     ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
     count: imageUrls.length,
+    mediaType: activeTool,
+    duration: activeTool === "video" ? videoDurationInput.value : "",
+    resolution: activeTool === "video" ? videoResolutionInput.value : "",
     createdAt: Date.now(),
   };
   const assets = pruneAssets([item, ...getAssets()]);
@@ -481,12 +580,14 @@ function renderAssets() {
       <div class="asset-thumbs">
         ${item.urls.slice(0, 4).map((url, index) => `
           <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
-            <img src="${escapeHtml(url)}" alt="资产 ${index + 1}">
+            ${item.mediaType === "video"
+              ? `<video src="${escapeHtml(url)}" muted playsinline></video>`
+              : `<img src="${escapeHtml(url)}" alt="资产 ${index + 1}">`}
           </a>
         `).join("")}
       </div>
       <div class="asset-meta">
-        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.urls.length} 张</b>
+        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.mediaType === "video" ? `${escapeHtml(item.resolution || "")} · ${escapeHtml(item.duration || "")}秒` : `${item.urls.length} 张`}</b>
         <small>${escapeHtml(formatTime(item.createdAt))}</small>
         <p>${escapeHtml(item.prompt || "未记录提示词")}</p>
         <button type="button" data-asset-id="${escapeHtml(item.id)}">下载这一组</button>
@@ -546,7 +647,7 @@ function setBalance(value, detail) {
 
 function setLoading(active, text = "生成图片") {
   generateButton.disabled = active;
-  generateButton.textContent = active ? text : "生成图片";
+  generateButton.textContent = active ? text : (activeTool === "video" ? "生成视频" : "生成图片");
 }
 
 function setMessage(text, type = "") {

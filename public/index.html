@@ -12,7 +12,7 @@
       <span class="mark">MF</span>
       <p class="eyebrow">PRIVATE STUDIO</p>
       <h1>MuseFrame</h1>
-      <p>输入访问密码后进入生图工作台。</p>
+      <p>输入访问密码后进入 MuseFrame 创作工作台。</p>
       <div class="gate-form">
         <input id="access-password" type="password" placeholder="输入访问密码">
         <button id="unlock-site" type="button">进入</button>
@@ -27,9 +27,13 @@
         <span class="mark">MF</span>
         <div>
           <strong>MuseFrame</strong>
-          <small>Product Image Studio</small>
+          <small>Image & Video Studio</small>
         </div>
       </div>
+      <nav class="tool-tabs" aria-label="创作类型">
+        <button class="tool-tab active" type="button" data-tool="image">生图</button>
+        <button class="tool-tab" type="button" data-tool="video">生视频</button>
+      </nav>
       <div class="keybar">
         <input id="api-key" type="password" placeholder="输入 Grsai API Key">
         <button id="save-key" type="button">设置 API Key</button>
@@ -39,9 +43,9 @@
 
     <section class="hero">
       <div>
-        <p class="eyebrow">PRODUCT IMAGE STUDIO</p>
+        <p class="eyebrow" id="hero-eyebrow">PRODUCT IMAGE STUDIO</p>
         <h1>MuseFrame</h1>
-        <p>输入提示词生成商品图；上传参考图后可做图生图。适合产品主图、场景图、广告素材、包装视觉和商单提案。</p>
+        <p id="hero-copy">输入提示词生成商品图；上传参考图后可做图生图。适合产品主图、场景图、广告素材、包装视觉和商单提案。</p>
       </div>
       <aside class="balance-card">
         <span>连接状态</span>
@@ -73,8 +77,8 @@
           <input id="reference-file" type="file" accept="image/*" multiple>
           <div id="upload-placeholder">
             <i>+</i>
-            <b>点击上传 / 拖入参考图</b>
-            <span>可放产品图、Logo、材质图、场景参考图，最多 8 张。</span>
+            <b id="upload-title">点击上传 / 拖入参考图</b>
+            <span id="upload-desc">可放产品图、Logo、材质图、场景参考图，最多 8 张。</span>
           </div>
           <div class="reference-list" id="reference-list"></div>
         </label>
@@ -108,13 +112,33 @@
             </select>
           </label>
 
-          <label class="field">
+          <label class="field image-only">
             <span>张数</span>
             <select id="image-count">
               <option value="1" selected>1 张</option>
               <option value="2">2 张</option>
               <option value="3">3 张</option>
               <option value="4">4 张</option>
+            </select>
+          </label>
+
+          <label class="field video-only hidden">
+            <span>清晰度</span>
+            <select id="video-resolution">
+              <option value="480p">480p</option>
+              <option value="768p" selected>768p</option>
+              <option value="1080p">1080p</option>
+            </select>
+          </label>
+
+          <label class="field video-only hidden">
+            <span>秒数</span>
+            <select id="video-duration">
+              <option value="5">5 秒</option>
+              <option value="8" selected>8 秒</option>
+              <option value="10">10 秒</option>
+              <option value="12">12 秒</option>
+              <option value="15">15 秒</option>
             </select>
           </label>
         </div>

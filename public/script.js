@@ -69,6 +69,17 @@ const IMAGE_MODELS = [
   ["gpt-image-2-vip", "gpt-image-2-vip"],
   ["gpt-image-2.5-flare", "gpt-image-2.5-flare"],
   ["gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst"],
+  ["nano-banana", "nano-banana"],
+  ["nano-banana-fast", "nano-banana-fast"],
+  ["nano-banana-2", "nano-banana-2"],
+  ["nano-banana-2-cl", "nano-banana-2-cl"],
+  ["nano-banana-2-2k-cl", "nano-banana-2-2k-cl"],
+  ["nano-banana-2-4k-cl", "nano-banana-2-4k-cl"],
+  ["nano-banana-pro", "nano-banana-pro"],
+  ["nano-banana-pro-vt", "nano-banana-pro-vt"],
+  ["nano-banana-pro-cl", "nano-banana-pro-cl"],
+  ["nano-banana-pro-vip", "nano-banana-pro-vip"],
+  ["nano-banana-pro-4k-vip", "nano-banana-pro-4k-vip"],
 ];
 
 const VIDEO_MODELS = [
@@ -221,9 +232,14 @@ function updateQualityHint() {
   if (activeTool !== "image" || !imageQualityInput) return;
   const model = modelInput.value;
   const quality = imageQualityInput.value;
-  const supportsHighSpec = ["gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"].includes(model);
+  const isNanoBanana = model.startsWith("nano-banana");
+  const supportsHighSpec = ["gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"].includes(model) || isNanoBanana;
   if (quality === "4k" && !supportsHighSpec) {
     setMessage("当前模型不支持 4K 参数，已按标准规格提交。需要 4K 建议选择 flare / sunburst。", "error");
+  } else if (isNanoBanana && quality === "4k") {
+    setMessage("nano-banana 将按 imageSize=4K 提交，建议优先用 4k/pro/vip 系列。", "success");
+  } else if (isNanoBanana && quality === "high") {
+    setMessage("nano-banana 将按 imageSize=2K 提交。");
   } else if (quality === "4k") {
     setMessage("已选择超清 4K：会使用更高规格参数，消耗会更高。", "success");
   } else if (quality === "high") {

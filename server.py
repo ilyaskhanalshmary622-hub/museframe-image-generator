@@ -57,12 +57,18 @@ def model_name(value=""):
     return (value or env("IMAGE_MODEL", "gpt-image-2.5")).strip()
 
 
+def is_nano_banana_model(model):
+    return (model or "").strip().startswith("nano-banana")
+
+
 def high_spec_image_model(model):
-    return model in {"gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"}
+    return model in {"gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"} or is_nano_banana_model(model)
 
 
 def image_quality(model, requested="standard"):
     requested = (requested or "standard").strip().lower()
+    if is_nano_banana_model(model):
+        return None
     if model in {"gpt-image-2", "gpt-image-2.5"}:
         return "auto"
     if requested == "4k":
@@ -73,9 +79,20 @@ def image_quality(model, requested="standard"):
 
 
 def image_size(model):
+    if is_nano_banana_model(model):
+        return "auto"
     if model in {"gpt-image-2", "gpt-image-2.5"}:
         return "auto"
     return "1024x1024"
+
+
+def nano_banana_image_size(requested="standard"):
+    requested = (requested or "standard").strip().lower()
+    if requested == "4k":
+        return "4K"
+    if requested == "high":
+        return "2K"
+    return "1K"
 
 
 def safe_image_count(value):
@@ -98,6 +115,42 @@ def safe_video_resolution(value):
 
 
 def safe_aspect_ratio(value, model):
+    value = (value or "").strip()
+    if is_nano_banana_model(model):
+        ratio_map = {
+            "1024x1024": "1:1",
+            "1280x720": "16:9",
+            "720x1280": "9:16",
+            "1152x864": "4:3",
+            "864x1152": "3:4",
+            "1536x1024": "3:2",
+            "1024x1536": "2:3",
+            "1120x896": "5:4",
+            "896x1120": "4:5",
+            "1920x832": "21:9",
+            "832x1920": "9:21",
+        }
+        allowed_ratios = {
+            "auto",
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4",
+            "3:2",
+            "2:3",
+            "5:4",
+            "4:5",
+            "21:9",
+            "1:4",
+            "4:1",
+            "1:8",
+            "8:1",
+        }
+        if value in allowed_ratios:
+            return value
+        return ratio_map.get(value, "1:1")
+
     allowed = {
         "1024x1024",
         "1280x720",
@@ -111,7 +164,6 @@ def safe_aspect_ratio(value, model):
         "1920x832",
         "832x1920",
     }
-    value = (value or "").strip()
     return value if value in allowed else image_size(model)
 
 
@@ -343,9 +395,12 @@ class Handler(SimpleHTTPRequestHandler):
                     "model": selected_model,
                     "images": [file["dataUrl"] for file in files],
                     "aspectRatio": image_aspect_ratio(fields.get("aspectRatio", ""), selected_model, requested_quality),
-                    "quality": image_quality(selected_model, requested_quality),
                     "replyType": "async",
                 }
+                if is_nano_banana_model(selected_model):
+                    common_payload["imageSize"] = nano_banana_image_size(requested_quality)
+                else:
+                    common_payload["quality"] = image_quality(selected_model, requested_quality)
             results = []
             for index in range(count):
                 payload = {

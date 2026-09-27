@@ -762,6 +762,9 @@ function friendlyError(error) {
   if (text.includes("timeout") || text.includes("timed out")) {
     return "接口连接超时。建议先用文生图测试，图生图时减少参考图数量。";
   }
+  if (text.includes("文件域名未加入下载白名单")) {
+    return text;
+  }
   return text;
 }
 

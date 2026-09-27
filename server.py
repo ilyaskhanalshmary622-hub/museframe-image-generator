@@ -327,7 +327,7 @@ class Handler(SimpleHTTPRequestHandler):
         }
         host = (parsed_target.hostname or "").lower()
         if parsed_target.scheme != "https" or host not in allowed_hosts:
-            self.send_json(400, {"error": "This file host is not allowed for direct download"})
+            self.send_json(400, {"error": f"文件域名未加入下载白名单：{host}。把这个域名发给我，我会精确加入允许下载列表。"})
             return
 
         try:

@@ -40,6 +40,19 @@ def allowed_origins():
     return {item.strip().rstrip("/") for item in values.split(",") if item.strip()}
 
 
+def default_download_hosts():
+    aitohumanize_hosts = [f"file{index}.aitohumanize.com" for index in range(1, 31)]
+    return ",".join(
+        [
+            *aitohumanize_hosts,
+            "file.aitohumanize.com",
+            "image.grsai.ai",
+            "grsaiapi.com",
+            "grsai.dakka.com.cn",
+        ]
+    )
+
+
 def model_name(value=""):
     return (value or env("IMAGE_MODEL", "gpt-image-2.5")).strip()
 
@@ -321,7 +334,7 @@ class Handler(SimpleHTTPRequestHandler):
             item.strip().lower()
             for item in env(
                 "MUSEFRAME_DOWNLOAD_HOSTS",
-                "file1.aitohumanize.com,file5.aitohumanize.com,file.aitohumanize.com,image.grsai.ai,grsaiapi.com,grsai.dakka.com.cn",
+                default_download_hosts(),
             ).split(",")
             if item.strip()
         }

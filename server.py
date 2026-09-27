@@ -321,7 +321,7 @@ class Handler(SimpleHTTPRequestHandler):
             item.strip().lower()
             for item in env(
                 "MUSEFRAME_DOWNLOAD_HOSTS",
-                "file1.aitohumanize.com,file.aitohumanize.com,image.grsai.ai,grsaiapi.com,grsai.dakka.com.cn",
+                "file1.aitohumanize.com,file5.aitohumanize.com,file.aitohumanize.com,image.grsai.ai,grsaiapi.com,grsai.dakka.com.cn",
             ).split(",")
             if item.strip()
         }

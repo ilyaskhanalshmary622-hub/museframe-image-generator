@@ -331,7 +331,7 @@ function finish(imageUrls) {
           <video src="${escapeHtml(url)}" controls playsinline></video>
           <figcaption>
             <span>视频 ${index + 1}</span>
-            <a href="${downloadHref(url, `museframe-video-${index + 1}.${fileExtensionFor(url)}`)}" download>下载</a>
+            <button type="button" class="inline-download" data-url="${escapeHtml(url)}" data-name="museframe-video-${index + 1}.${fileExtensionFor(url)}">下载</button>
           </figcaption>
         </figure>
       `).join("")}</div>`
@@ -341,11 +341,12 @@ function finish(imageUrls) {
             <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
             <figcaption>
               <span>图片 ${index + 1}</span>
-              <a href="${downloadHref(url, `museframe-image-${index + 1}.${fileExtensionFor(url)}`)}" download>下载</a>
+              <button type="button" class="inline-download" data-url="${escapeHtml(url)}" data-name="museframe-image-${index + 1}.${fileExtensionFor(url)}">下载</button>
             </figcaption>
           </figure>
         `).join("")}
       </div>`;
+  bindInlineDownloads();
   downloadButton.disabled = false;
   setMessage(activeTool === "video" ? "视频生成完成。" : `生成完成，共 ${imageUrls.length} 张。`, "success");
   renderAssets();
@@ -609,7 +610,7 @@ function renderAssets() {
     <article class="asset-item">
       <div class="asset-thumbs">
         ${item.urls.slice(0, 4).map((url, index) => `
-          <a href="${downloadHref(url, `${item.id}-${index + 1}.${fileExtensionFor(url)}`)}" download>
+          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
             ${item.mediaType === "video"
               ? `<video src="${escapeHtml(url)}" muted playsinline></video>`
               : `<img src="${escapeHtml(url)}" alt="资产 ${index + 1}">`}
@@ -645,12 +646,59 @@ function clearAssets() {
   setMessage("最近 7 天资产记录已清空。");
 }
 
-function downloadUrls(urls, label) {
-  urls.forEach((url, index) => {
+async function downloadUrls(urls, label) {
+  let success = 0;
+  for (const [index, url] of urls.entries()) {
+    try {
+      await downloadOne(url, `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`);
+      success += 1;
+    } catch (error) {
+      setMessage(`下载失败：${friendlyError(error)}`, "error");
+    }
+  }
+  if (success) {
+    setMessage(`已开始下载 ${success} 个文件。`, "success");
+  }
+}
+
+async function downloadOne(url, filename) {
+  if (String(url).startsWith("data:")) {
     const link = document.createElement("a");
-    link.href = downloadHref(url, `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`);
-    link.download = `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`;
+    link.href = url;
+    link.download = filename;
     link.click();
+    return;
+  }
+
+  const response = await fetch(downloadHref(url, filename));
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `下载接口返回 ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+}
+
+function bindInlineDownloads() {
+  imageStage.querySelectorAll(".inline-download").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      button.textContent = "下载中";
+      try {
+        await downloadOne(button.dataset.url || "", button.dataset.name || "museframe-asset.png");
+        setMessage("已开始下载。", "success");
+      } catch (error) {
+        setMessage(`下载失败：${friendlyError(error)}`, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "下载";
+      }
+    });
   });
 }
 

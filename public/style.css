@@ -387,16 +387,19 @@ button, input, textarea, select { font: inherit; }
   transform: translateY(0);
 }
 
-.result-card figcaption a {
+.result-card figcaption a,
+.result-card figcaption button {
   display: grid;
   place-items: center;
   min-width: 58px;
   height: 30px;
+  min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
   color: #fff;
   background: linear-gradient(135deg, var(--blue), var(--blue-2));
   text-decoration: none;
+  font-size: 12px;
 }
 
 .result-grid img {

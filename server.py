@@ -319,7 +319,10 @@ class Handler(SimpleHTTPRequestHandler):
         parsed_target = urlparse(target_url)
         allowed_hosts = {
             item.strip().lower()
-            for item in env("MUSEFRAME_DOWNLOAD_HOSTS", "file1.aitohumanize.com,file.aitohumanize.com").split(",")
+            for item in env(
+                "MUSEFRAME_DOWNLOAD_HOSTS",
+                "file1.aitohumanize.com,file.aitohumanize.com,image.grsai.ai,grsaiapi.com,grsai.dakka.com.cn",
+            ).split(",")
             if item.strip()
         }
         host = (parsed_target.hostname or "").lower()

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MuseFrame</title>
-  <link rel="stylesheet" href="./style.css?v=20260924-ux-download">
+  <link rel="stylesheet" href="./style.css?v=20260927-ux-clean">
 </head>
 <body>
   <section id="access-gate" class="access-gate">
@@ -52,6 +52,13 @@
         <strong id="balance-value">未设置 Key</strong>
         <p id="balance-detail">每个用户输入自己的 Key，只保存在自己的浏览器本地，不会写进网站代码。</p>
       </aside>
+    </section>
+
+    <section class="flow-strip" aria-label="工作流程">
+      <span><b>01</b> 输入 Key</span>
+      <span><b>02</b> 上传参考 / 写提示词</span>
+      <span><b>03</b> 生成资产</span>
+      <span><b>04</b> 一键下载 / 复用提示词</span>
     </section>
 
     <section class="workspace">
@@ -176,18 +183,25 @@
       <div id="asset-list" class="asset-list"></div>
     </details>
 
-    <section class="history">
-      <div class="panel-head">
+    <details class="history drawer">
+      <summary class="drawer-summary">
         <div>
           <b>提示词记录</b>
-          <span>自动保存最近 12 条，方便复用和整理。</span>
+          <span>自动保存最近 12 条，点击后展开查看、复用和整理。</span>
+        </div>
+        <strong id="history-count">0 条记录</strong>
+      </summary>
+      <div class="panel-head drawer-panel-head">
+        <div>
+          <b>提示词记录</b>
+          <span>长提示词默认收起，避免工作台被撑乱。</span>
         </div>
         <button id="clear-history" class="soft" type="button">清空历史</button>
       </div>
       <div id="history-list" class="history-list"></div>
-    </section>
+    </details>
   </main>
 
-  <script src="./script.js?v=20260924-ux-download"></script>
+  <script src="./script.js?v=20260927-ux-clean"></script>
 </body>
 </html>

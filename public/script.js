@@ -30,6 +30,7 @@ const downloadButton = document.querySelector("#download-image");
 const downloadAssetsButton = document.querySelector("#download-assets");
 const clearAssetsButton = document.querySelector("#clear-assets");
 const assetCount = document.querySelector("#asset-count");
+const historyCount = document.querySelector("#history-count");
 const imageStage = document.querySelector("#image-stage");
 const message = document.querySelector("#message");
 const modeLabel = document.querySelector("#mode-label");
@@ -325,14 +326,24 @@ function finish(imageUrls) {
   currentImageUrls = imageUrls;
   saveAssetBatch(imageUrls);
   imageStage.innerHTML = activeTool === "video"
-    ? `<div class="result-grid count-1">${imageUrls.map((url) => `
-        <video src="${escapeHtml(url)}" controls playsinline></video>
+    ? `<div class="result-grid count-1">${imageUrls.map((url, index) => `
+        <figure class="result-card">
+          <video src="${escapeHtml(url)}" controls playsinline></video>
+          <figcaption>
+            <span>视频 ${index + 1}</span>
+            <a href="${downloadHref(url, `museframe-video-${index + 1}.${fileExtensionFor(url)}`)}" download>下载</a>
+          </figcaption>
+        </figure>
       `).join("")}</div>`
     : `<div class="result-grid count-${Math.min(imageUrls.length, 4)}">
         ${imageUrls.map((url, index) => `
-          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+          <figure class="result-card">
             <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
-          </a>
+            <figcaption>
+              <span>图片 ${index + 1}</span>
+              <a href="${downloadHref(url, `museframe-image-${index + 1}.${fileExtensionFor(url)}`)}" download>下载</a>
+            </figcaption>
+          </figure>
         `).join("")}
       </div>`;
   downloadButton.disabled = false;
@@ -496,6 +507,9 @@ function getHistory() {
 
 function renderHistory() {
   const history = getHistory();
+  if (historyCount) {
+    historyCount.textContent = history.length ? `${history.length} 条记录` : "0 条记录";
+  }
   if (!history.length) {
     historyList.innerHTML = `<div class="history-empty">暂无记录，生成一次后会自动保存提示词。</div>`;
     return;

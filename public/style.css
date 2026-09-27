@@ -462,6 +462,69 @@ button, input, textarea, select { font: inherit; }
 
 .drop-zone input { display: none; }
 
+.video-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.frame-drop-zone {
+  display: block;
+  min-height: 170px;
+  border: 1.5px dashed #8bbff7;
+  border-radius: 22px;
+  background: rgba(246, 251, 255, .86);
+  cursor: pointer;
+  transition: .2s ease;
+}
+
+.frame-drop-zone.wide {
+  grid-column: 1 / -1;
+}
+
+.frame-drop-zone.dragover {
+  background: rgba(222, 240, 255, .9);
+  border-color: var(--blue);
+}
+
+.frame-drop-zone input {
+  display: none;
+}
+
+.frame-placeholder {
+  min-height: 170px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 22px;
+  text-align: center;
+}
+
+.frame-placeholder i {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e7f3ff;
+  color: var(--blue);
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.frame-placeholder b {
+  color: var(--blue);
+  font-size: 18px;
+}
+
+.frame-placeholder span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 #upload-placeholder {
   min-height: 210px;
   display: grid;
@@ -494,6 +557,17 @@ button, input, textarea, select { font: inherit; }
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   padding: 12px;
+}
+
+.frame-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 12px;
+}
+
+.frame-list.multi {
+  grid-template-columns: repeat(6, 1fr);
 }
 
 .reference-count {
@@ -800,11 +874,20 @@ button.soft {
   .hero,
   .flow-strip,
   .workspace,
+  .video-frame-grid,
   .settings-grid,
   .asset-list,
   .asset-item,
   .history-list {
     grid-template-columns: 1fr;
+  }
+
+  .frame-drop-zone.wide {
+    grid-column: auto;
+  }
+
+  .frame-list.multi {
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .asset-actions {

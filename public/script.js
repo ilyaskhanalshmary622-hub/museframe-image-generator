@@ -17,6 +17,15 @@ const referenceList = document.querySelector("#reference-list");
 const uploadPlaceholder = document.querySelector("#upload-placeholder");
 const uploadTitle = document.querySelector("#upload-title");
 const uploadDesc = document.querySelector("#upload-desc");
+const videoStartInput = document.querySelector("#video-start-frame");
+const videoEndInput = document.querySelector("#video-end-frame");
+const videoReferenceInput = document.querySelector("#video-reference-file");
+const startFrameZone = document.querySelector("#start-frame-zone");
+const endFrameZone = document.querySelector("#end-frame-zone");
+const videoReferenceZone = document.querySelector("#video-reference-zone");
+const startFrameList = document.querySelector("#start-frame-list");
+const endFrameList = document.querySelector("#end-frame-list");
+const videoReferenceList = document.querySelector("#video-reference-list");
 const modelInput = document.querySelector("#model");
 const aspectRatioInput = document.querySelector("#aspect-ratio");
 const imageQualityInput = document.querySelector("#image-quality");
@@ -44,9 +53,13 @@ const ASSET_STORE = "museframe-assets";
 const ACCESS_STORE = "museframe-access-ok";
 const ACCESS_PASSWORD = "8611";
 const MAX_REFERENCE_FILES = 8;
+const MAX_VIDEO_REFERENCE_FILES = 6;
 const ASSET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 let referenceFiles = [];
+let videoStartFrame = [];
+let videoEndFrame = [];
+let videoReferenceFiles = [];
 let currentImageUrls = [];
 let activeTool = "image";
 
@@ -124,6 +137,22 @@ function init() {
     await addReferenceFiles(event.dataTransfer.files);
   });
 
+  videoStartInput.addEventListener("change", async () => {
+    await addVideoFrameFiles("start", videoStartInput.files);
+    videoStartInput.value = "";
+  });
+  videoEndInput.addEventListener("change", async () => {
+    await addVideoFrameFiles("end", videoEndInput.files);
+    videoEndInput.value = "";
+  });
+  videoReferenceInput.addEventListener("change", async () => {
+    await addVideoFrameFiles("reference", videoReferenceInput.files);
+    videoReferenceInput.value = "";
+  });
+  setupVideoDropZone(startFrameZone, "start");
+  setupVideoDropZone(endFrameZone, "end");
+  setupVideoDropZone(videoReferenceZone, "reference");
+
   renderHistory();
   renderAssets();
   setActiveTool("image");
@@ -185,9 +214,7 @@ function setActiveTool(tool) {
     generateButton.textContent = "生成图片";
   }
 
-  modeLabel.textContent = referenceFiles.length
-    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
-    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+  updateModeLabel();
 }
 
 function updateQualityHint() {
@@ -202,6 +229,128 @@ function updateQualityHint() {
   } else if (quality === "high") {
     setMessage("已选择高清规格，适合正式商品图。");
   }
+}
+
+function getActiveUploadFiles() {
+  if (activeTool === "video") {
+    return [...videoStartFrame, ...videoEndFrame, ...videoReferenceFiles];
+  }
+  return referenceFiles;
+}
+
+function updateModeLabel() {
+  const hasUploads = getActiveUploadFiles().length > 0;
+  modeLabel.textContent = hasUploads
+    ? (activeTool === "video" ? "首尾帧 / 多图参考视频模式" : "图生图模式")
+    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+}
+
+function setupVideoDropZone(zone, slot) {
+  if (!zone) return;
+  zone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    zone.classList.add("dragover");
+  });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    zone.classList.remove("dragover");
+    await addVideoFrameFiles(slot, event.dataTransfer.files);
+  });
+}
+
+async function addVideoFrameFiles(slot, files) {
+  const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
+  if (!images.length) return;
+
+  setMessage("正在优化视频参考图体积...");
+  const optimized = [];
+  for (const file of images) {
+    optimized.push(await compressImage(file));
+  }
+
+  if (slot === "start") {
+    videoStartFrame = optimized.slice(0, 1);
+    setMessage("首帧已添加。", "success");
+  } else if (slot === "end") {
+    videoEndFrame = optimized.slice(0, 1);
+    setMessage("尾帧已添加。", "success");
+  } else {
+    videoReferenceFiles = [...videoReferenceFiles, ...optimized].slice(0, MAX_VIDEO_REFERENCE_FILES);
+    setMessage(`已添加 ${videoReferenceFiles.length} 张视频参考图。`, "success");
+  }
+
+  updateModeLabel();
+  renderVideoFrames();
+}
+
+function renderVideoFrames() {
+  renderFrameSlot(startFrameList, videoStartFrame, "首帧", () => {
+    videoStartFrame = [];
+    renderVideoFrames();
+    updateModeLabel();
+  });
+  renderFrameSlot(endFrameList, videoEndFrame, "尾帧", () => {
+    videoEndFrame = [];
+    renderVideoFrames();
+    updateModeLabel();
+  });
+  renderReferenceSlot(videoReferenceList, videoReferenceFiles);
+}
+
+function renderFrameSlot(container, files, label, onRemove) {
+  if (!container) return;
+  container.innerHTML = "";
+  const zone = container.closest(".frame-drop-zone");
+  const placeholder = zone?.querySelector(".frame-placeholder");
+  if (placeholder) placeholder.style.display = files.length ? "none" : "grid";
+  if (!files.length) return;
+
+  const previewUrl = URL.createObjectURL(files[0]);
+  container.innerHTML = `
+    <div class="reference-count">${label}已添加</div>
+    <div class="reference-item">
+      <img src="${previewUrl}" alt="${label}">
+      <button type="button">×</button>
+    </div>
+  `;
+  container.querySelector("button").addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onRemove();
+  });
+}
+
+function renderReferenceSlot(container, files) {
+  if (!container) return;
+  container.innerHTML = "";
+  const zone = container.closest(".frame-drop-zone");
+  const placeholder = zone?.querySelector(".frame-placeholder");
+  if (placeholder) placeholder.style.display = files.length ? "none" : "grid";
+  if (!files.length) return;
+
+  const count = document.createElement("div");
+  count.className = "reference-count";
+  count.textContent = `已添加 ${files.length} 张参考图`;
+  container.appendChild(count);
+
+  files.forEach((file, index) => {
+    const item = document.createElement("div");
+    item.className = "reference-item";
+    const previewUrl = URL.createObjectURL(file);
+    item.innerHTML = `
+      <img src="${previewUrl}" alt="视频参考图 ${index + 1}">
+      <button type="button">×</button>
+    `;
+    item.querySelector("button").addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      videoReferenceFiles.splice(index, 1);
+      renderVideoFrames();
+      updateModeLabel();
+    });
+    container.appendChild(item);
+  });
 }
 
 function saveKey() {
@@ -245,11 +394,12 @@ async function generate() {
   }
 
   currentImageUrls = [];
+  const uploadFiles = getActiveUploadFiles();
   downloadButton.disabled = true;
   savePrompt(prompt);
   showLoading(
     activeTool === "video" ? "正在提交视频任务" : "正在提交生图任务",
-    referenceFiles.length ? "正在上传参考图并连接 Grsai。" : `正在连接 Grsai ${activeTool === "video" ? "生视频" : "文生图"}接口。`,
+    uploadFiles.length ? "正在上传参考图并连接 Grsai。" : `正在连接 Grsai ${activeTool === "video" ? "生视频" : "文生图"}接口。`,
   );
   setLoading(true, activeTool === "video" ? "生成视频中..." : "生成中...");
 
@@ -263,9 +413,12 @@ async function generate() {
     formData.append("count", activeTool === "video" ? "1" : imageCountInput.value);
     formData.append("resolution", videoResolutionInput.value);
     formData.append("duration", videoDurationInput.value);
-    formData.append("mode", referenceFiles.length ? `${activeTool}-with-reference` : `${activeTool}-text`);
+    formData.append("mode", uploadFiles.length ? `${activeTool}-with-reference` : `${activeTool}-text`);
+    formData.append("hasStartFrame", videoStartFrame.length ? "1" : "");
+    formData.append("hasEndFrame", videoEndFrame.length ? "1" : "");
+    formData.append("videoReferenceCount", String(videoReferenceFiles.length));
     formData.append("apiKey", key);
-    referenceFiles.forEach((file) => formData.append("images", file));
+    uploadFiles.forEach((file) => formData.append("images", file));
 
     const created = await postForm("/api/generate", formData);
     const taskIds = normalizeTaskIds(created);
@@ -402,9 +555,7 @@ async function addReferenceFiles(files) {
   }
 
   referenceFiles = [...referenceFiles, ...optimized].slice(0, MAX_REFERENCE_FILES);
-  modeLabel.textContent = referenceFiles.length
-    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
-    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+  updateModeLabel();
   renderReferences();
   setMessage(`已添加 ${referenceFiles.length} 张参考图。`, "success");
 }
@@ -454,9 +605,7 @@ function renderReferences() {
   count.className = "reference-count";
   count.textContent = `已添加 ${referenceFiles.length} 张参考图`;
   referenceList.appendChild(count);
-  modeLabel.textContent = referenceFiles.length
-    ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
-    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+  updateModeLabel();
 
   referenceFiles.forEach((file, index) => {
     const item = document.createElement("div");
@@ -470,9 +619,7 @@ function renderReferences() {
       event.preventDefault();
       event.stopPropagation();
       referenceFiles.splice(index, 1);
-      modeLabel.textContent = referenceFiles.length
-        ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
-        : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+      updateModeLabel();
       renderReferences();
     });
     referenceList.appendChild(item);
@@ -482,10 +629,14 @@ function renderReferences() {
 function clearForm() {
   promptInput.value = "";
   referenceFiles = [];
+  videoStartFrame = [];
+  videoEndFrame = [];
+  videoReferenceFiles = [];
   currentImageUrls = [];
   downloadButton.disabled = true;
-  modeLabel.textContent = activeTool === "video" ? "文生视频模式" : "文生图模式";
+  updateModeLabel();
   renderReferences();
+  renderVideoFrames();
   imageStage.innerHTML = `
     <div class="empty">
       <strong>等待生成</strong>
@@ -499,7 +650,7 @@ function savePrompt(prompt) {
   const history = getHistory();
   const item = {
     prompt,
-    mode: referenceFiles.length
+    mode: getActiveUploadFiles().length
       ? (activeTool === "video" ? "图生视频" : "图生图")
       : (activeTool === "video" ? "文生视频" : "文生图"),
     model: modelInput.value,

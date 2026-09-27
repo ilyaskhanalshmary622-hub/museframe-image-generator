@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MuseFrame</title>
-  <link rel="stylesheet" href="./style.css?v=20260927-output-quality">
+  <link rel="stylesheet" href="./style.css?v=20260927-frame-slots">
 </head>
 <body>
   <section id="access-gate" class="access-gate">
@@ -80,7 +80,39 @@
       </section>
 
       <section class="control-panel">
-        <label class="drop-zone" id="drop-zone" for="reference-file">
+        <section class="video-frame-grid video-only hidden" aria-label="视频首尾帧和参考图">
+          <label class="frame-drop-zone" id="start-frame-zone" for="video-start-frame">
+            <input id="video-start-frame" type="file" accept="image/*">
+            <div class="frame-placeholder">
+              <i>01</i>
+              <b>上传首帧</b>
+              <span>视频第一秒锁定的开头画面。</span>
+            </div>
+            <div class="frame-list" id="start-frame-list"></div>
+          </label>
+
+          <label class="frame-drop-zone" id="end-frame-zone" for="video-end-frame">
+            <input id="video-end-frame" type="file" accept="image/*">
+            <div class="frame-placeholder">
+              <i>02</i>
+              <b>上传尾帧</b>
+              <span>视频最后结果画面或定格画面。</span>
+            </div>
+            <div class="frame-list" id="end-frame-list"></div>
+          </label>
+
+          <label class="frame-drop-zone wide" id="video-reference-zone" for="video-reference-file">
+            <input id="video-reference-file" type="file" accept="image/*" multiple>
+            <div class="frame-placeholder">
+              <i>+</i>
+              <b>多图参考</b>
+              <span>产品、人物、场景、材质都可以放，最多 6 张。</span>
+            </div>
+            <div class="frame-list multi" id="video-reference-list"></div>
+          </label>
+        </section>
+
+        <label class="drop-zone image-only" id="drop-zone" for="reference-file">
           <input id="reference-file" type="file" accept="image/*" multiple>
           <div id="upload-placeholder">
             <i>+</i>
@@ -211,6 +243,6 @@
     </details>
   </main>
 
-  <script src="./script.js?v=20260927-output-quality"></script>
+  <script src="./script.js?v=20260927-frame-slots"></script>
 </body>
 </html>

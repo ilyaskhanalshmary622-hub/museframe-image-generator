@@ -308,6 +308,24 @@ class Handler(SimpleHTTPRequestHandler):
                 requested_quality=requested_quality,
             )
             if media_type == "video":
+                frame_notes = []
+                if fields.get("hasStartFrame"):
+                    frame_notes.append("The first uploaded image is the START FRAME. Use it as the opening shot and keep its subject composition at the beginning.")
+                if fields.get("hasEndFrame"):
+                    frame_notes.append("The second uploaded image is the END FRAME. The video should naturally transition toward this final composition/result.")
+                ref_count = fields.get("videoReferenceCount", "0").strip()
+                if ref_count and ref_count != "0":
+                    frame_notes.append(f"The remaining uploaded images are additional visual references. Use them only for product, character, scene, material, and style consistency.")
+                if frame_notes:
+                    prompt_text = "\n".join(
+                        [
+                            prompt_text,
+                            "",
+                            "Video reference mapping:",
+                            *frame_notes,
+                            "Do not treat the start frame and end frame as random references. Build a coherent motion path from the start frame to the end frame.",
+                        ]
+                    )
                 video_resolution = safe_video_resolution(fields.get("resolution", ""))
                 video_duration = safe_video_duration(fields.get("duration", ""))
                 if video_resolution == "1080p" and video_duration > 10:

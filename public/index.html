@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MuseFrame</title>
-  <link rel="stylesheet" href="./style.css?v=20260927-download-fix">
+  <link rel="stylesheet" href="./style.css?v=20260927-output-quality">
 </head>
 <body>
   <section id="access-gate" class="access-gate">
@@ -120,6 +120,15 @@
           </label>
 
           <label class="field image-only">
+            <span>输出规格</span>
+            <select id="image-quality">
+              <option value="standard" selected>标准 · 测试省积分</option>
+              <option value="high">高清 · 商品图常用</option>
+              <option value="4k">超清 4K · 高规格模型</option>
+            </select>
+          </label>
+
+          <label class="field image-only">
             <span>张数</span>
             <select id="image-count">
               <option value="1" selected>1 张</option>
@@ -202,6 +211,6 @@
     </details>
   </main>
 
-  <script src="./script.js?v=20260927-download-fix"></script>
+  <script src="./script.js?v=20260927-output-quality"></script>
 </body>
 </html>

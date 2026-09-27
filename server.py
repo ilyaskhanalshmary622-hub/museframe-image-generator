@@ -57,9 +57,18 @@ def model_name(value=""):
     return (value or env("IMAGE_MODEL", "gpt-image-2.5")).strip()
 
 
-def image_quality(model):
+def high_spec_image_model(model):
+    return model in {"gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"}
+
+
+def image_quality(model, requested="standard"):
+    requested = (requested or "standard").strip().lower()
     if model in {"gpt-image-2", "gpt-image-2.5"}:
         return "auto"
+    if requested == "4k":
+        return "xhigh" if model == "gpt-image-2.5-sunburst" else "high"
+    if requested == "high":
+        return "high"
     return "medium"
 
 
@@ -106,6 +115,43 @@ def safe_aspect_ratio(value, model):
     return value if value in allowed else image_size(model)
 
 
+def image_aspect_ratio(value, model, requested_quality):
+    base = safe_aspect_ratio(value, model)
+    requested_quality = (requested_quality or "standard").strip().lower()
+    if not high_spec_image_model(model) or requested_quality == "standard":
+        return base
+
+    upscale_map = {
+        "high": {
+            "1024x1024": "2048x2048",
+            "1280x720": "2048x1152",
+            "720x1280": "1152x2048",
+            "1152x864": "2304x1728",
+            "864x1152": "1728x2304",
+            "1536x1024": "2048x1360",
+            "1024x1536": "1360x2048",
+            "1120x896": "2240x1792",
+            "896x1120": "1792x2240",
+            "1920x832": "3072x1536",
+            "832x1920": "1536x3072",
+        },
+        "4k": {
+            "1024x1024": "2880x2880",
+            "1280x720": "3840x2160",
+            "720x1280": "2160x3840",
+            "1152x864": "3264x2448",
+            "864x1152": "2448x3264",
+            "1536x1024": "3504x2336",
+            "1024x1536": "2336x3504",
+            "1120x896": "3200x2560",
+            "896x1120": "2560x3200",
+            "1920x832": "3840x1920",
+            "832x1920": "1920x3840",
+        },
+    }
+    return upscale_map.get(requested_quality, {}).get(base, base)
+
+
 def safe_video_aspect_ratio(value):
     value = (value or "").strip().lower()
     if value in {"portrait", "landscape"}:
@@ -119,7 +165,7 @@ def safe_video_aspect_ratio(value):
     return "portrait"
 
 
-def build_prompt(prompt, mode, files):
+def build_prompt(prompt, mode, files, requested_quality="standard"):
     output_mode = "image-to-image" if files or mode == "image-to-image" else "text-to-image"
     lines = [
         prompt.strip(),
@@ -131,6 +177,10 @@ def build_prompt(prompt, mode, files):
         lines.append(
             f"Reference image count: {len(files)}. Keep the product structure, logo direction, material, and key visual identity from the reference images."
         )
+    if requested_quality == "high":
+        lines.append("Output detail: high definition commercial image, sharp product texture, clean edges, premium lighting.")
+    elif requested_quality == "4k":
+        lines.append("Output detail: ultra clear 4K commercial product photography, sharp texture, high resolution, premium realistic details.")
     return "\n".join(lines)
 
 
@@ -245,11 +295,17 @@ class Handler(SimpleHTTPRequestHandler):
 
             media_type = fields.get("mediaType", "image").strip().lower()
             selected_model = model_name(fields.get("model", ""))
+            requested_quality = fields.get("imageQuality", "standard").strip().lower()
+            if media_type != "image":
+                requested_quality = "standard"
+            if requested_quality == "4k" and not high_spec_image_model(selected_model):
+                requested_quality = "standard"
             count = 1 if media_type == "video" else safe_image_count(fields.get("count", "1"))
             prompt_text = build_prompt(
                 prompt=prompt,
                 mode=fields.get("mode", "text-to-image"),
                 files=files,
+                requested_quality=requested_quality,
             )
             if media_type == "video":
                 video_resolution = safe_video_resolution(fields.get("resolution", ""))
@@ -268,8 +324,8 @@ class Handler(SimpleHTTPRequestHandler):
                 common_payload = {
                     "model": selected_model,
                     "images": [file["dataUrl"] for file in files],
-                    "aspectRatio": safe_aspect_ratio(fields.get("aspectRatio", ""), selected_model),
-                    "quality": image_quality(selected_model),
+                    "aspectRatio": image_aspect_ratio(fields.get("aspectRatio", ""), selected_model, requested_quality),
+                    "quality": image_quality(selected_model, requested_quality),
                     "replyType": "async",
                 }
             results = []

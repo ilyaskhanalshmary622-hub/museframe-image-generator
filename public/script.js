@@ -19,6 +19,7 @@ const uploadTitle = document.querySelector("#upload-title");
 const uploadDesc = document.querySelector("#upload-desc");
 const modelInput = document.querySelector("#model");
 const aspectRatioInput = document.querySelector("#aspect-ratio");
+const imageQualityInput = document.querySelector("#image-quality");
 const imageCountInput = document.querySelector("#image-count");
 const videoResolutionInput = document.querySelector("#video-resolution");
 const videoDurationInput = document.querySelector("#video-duration");
@@ -102,6 +103,8 @@ function init() {
   toolTabs.forEach((tab) => {
     tab.addEventListener("click", () => setActiveTool(tab.dataset.tool || "image"));
   });
+  modelInput.addEventListener("change", updateQualityHint);
+  imageQualityInput.addEventListener("change", updateQualityHint);
 
   fileInput.addEventListener("change", async () => {
     await addReferenceFiles(fileInput.files);
@@ -164,6 +167,7 @@ function setActiveTool(tool) {
   const ratios = activeTool === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
   modelInput.innerHTML = models.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
   aspectRatioInput.innerHTML = ratios.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  updateQualityHint();
 
   if (activeTool === "video") {
     heroEyebrow.textContent = "AI VIDEO STUDIO";
@@ -184,6 +188,20 @@ function setActiveTool(tool) {
   modeLabel.textContent = referenceFiles.length
     ? (activeTool === "video" ? "图生视频模式" : "图生图模式")
     : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+}
+
+function updateQualityHint() {
+  if (activeTool !== "image" || !imageQualityInput) return;
+  const model = modelInput.value;
+  const quality = imageQualityInput.value;
+  const supportsHighSpec = ["gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"].includes(model);
+  if (quality === "4k" && !supportsHighSpec) {
+    setMessage("当前模型不支持 4K 参数，已按标准规格提交。需要 4K 建议选择 flare / sunburst。", "error");
+  } else if (quality === "4k") {
+    setMessage("已选择超清 4K：会使用更高规格参数，消耗会更高。", "success");
+  } else if (quality === "high") {
+    setMessage("已选择高清规格，适合正式商品图。");
+  }
 }
 
 function saveKey() {
@@ -241,6 +259,7 @@ async function generate() {
     formData.append("prompt", prompt);
     formData.append("model", modelInput.value);
     formData.append("aspectRatio", aspectRatioInput.value);
+    formData.append("imageQuality", activeTool === "image" ? imageQualityInput.value : "");
     formData.append("count", activeTool === "video" ? "1" : imageCountInput.value);
     formData.append("resolution", videoResolutionInput.value);
     formData.append("duration", videoDurationInput.value);
@@ -485,6 +504,7 @@ function savePrompt(prompt) {
       : (activeTool === "video" ? "文生视频" : "文生图"),
     model: modelInput.value,
     ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
+    quality: activeTool === "image" ? imageQualityInput.options[imageQualityInput.selectedIndex].text : "",
     count: activeTool === "video" ? "1" : imageCountInput.value,
     mediaType: activeTool,
     duration: activeTool === "video" ? videoDurationInput.value : "",
@@ -518,7 +538,7 @@ function renderHistory() {
 
   historyList.innerHTML = history.map((item) => `
     <article class="history-item">
-      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${escapeHtml(item.count || "1")}张</b>
+      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${escapeHtml(item.quality || "")} · ${escapeHtml(item.count || "1")}张</b>
       <p class="prompt-preview">${escapeHtml(shortText(item.prompt, 88))}</p>
       <p class="prompt-full hidden">${escapeHtml(item.prompt)}</p>
       <div class="history-actions">
@@ -566,6 +586,7 @@ function saveAssetBatch(imageUrls) {
     prompt,
     model: modelInput.value,
     ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
+    quality: activeTool === "image" ? imageQualityInput.options[imageQualityInput.selectedIndex].text : "",
     count: imageUrls.length,
     mediaType: activeTool,
     duration: activeTool === "video" ? videoDurationInput.value : "",
@@ -618,7 +639,7 @@ function renderAssets() {
         `).join("")}
       </div>
       <div class="asset-meta">
-        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.mediaType === "video" ? `${escapeHtml(item.resolution || "")} · ${escapeHtml(item.duration || "")}秒` : `${item.urls.length} 张`}</b>
+        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.mediaType === "video" ? `${escapeHtml(item.resolution || "")} · ${escapeHtml(item.duration || "")}秒` : `${escapeHtml(item.quality || "")} · ${item.urls.length} 张`}</b>
         <small>${escapeHtml(formatTime(item.createdAt))}</small>
         <p>${escapeHtml(item.prompt || "未记录提示词")}</p>
         <button type="button" data-asset-id="${escapeHtml(item.id)}">下载这一组</button>

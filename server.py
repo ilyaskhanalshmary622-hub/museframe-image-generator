@@ -116,6 +116,19 @@ def safe_video_resolution(value):
 
 def safe_aspect_ratio(value, model):
     value = (value or "").strip()
+    ratio_to_size = {
+        "1:1": "1024x1024",
+        "16:9": "1280x720",
+        "9:16": "720x1280",
+        "4:3": "1152x864",
+        "3:4": "864x1152",
+        "3:2": "1536x1024",
+        "2:3": "1024x1536",
+        "5:4": "1120x896",
+        "4:5": "896x1120",
+        "21:9": "1920x832",
+        "9:21": "832x1920",
+    }
     if is_nano_banana_model(model):
         ratio_map = {
             "1024x1024": "1:1",
@@ -164,6 +177,8 @@ def safe_aspect_ratio(value, model):
         "1920x832",
         "832x1920",
     }
+    if value in ratio_to_size:
+        return ratio_to_size[value]
     return value if value in allowed else image_size(model)
 
 

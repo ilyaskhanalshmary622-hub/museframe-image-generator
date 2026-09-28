@@ -3,20 +3,49 @@ const appShell = document.querySelector("#app-shell");
 const accessPasswordInput = document.querySelector("#access-password");
 const unlockButton = document.querySelector("#unlock-site");
 const gateMessage = document.querySelector("#gate-message");
+
 const apiKeyInput = document.querySelector("#api-key");
+const apiKeySettings = document.querySelector("#api-key-settings");
 const saveKeyButton = document.querySelector("#save-key");
+const saveKeySettings = document.querySelector("#save-key-settings");
 const checkBalanceButton = document.querySelector("#check-balance");
+const checkKeySettings = document.querySelector("#check-key-settings");
 const balanceValue = document.querySelector("#balance-value");
 const balanceDetail = document.querySelector("#balance-detail");
-const toolTabs = document.querySelectorAll(".tool-tab");
+const keyStateTitle = document.querySelector("#key-state-title");
+const keyStateDesc = document.querySelector("#key-state-desc");
+
+const navItems = document.querySelectorAll("[data-nav]");
+const navShortcuts = document.querySelectorAll("[data-nav-shortcut]");
+const pagePanels = document.querySelectorAll("[data-page-panel]");
 const heroEyebrow = document.querySelector("#hero-eyebrow");
 const heroCopy = document.querySelector("#hero-copy");
-const fileInput = document.querySelector("#reference-file");
+const composerTitle = document.querySelector("#composer-title");
+const composerSubtitle = document.querySelector("#composer-subtitle");
+const modeLabel = document.querySelector("#mode-label");
+
+const imageModeTabs = document.querySelector("#image-mode-tabs");
+const videoModeTabs = document.querySelector("#video-mode-tabs");
+const imageModeButtons = document.querySelectorAll("[data-image-mode]");
+const videoModeButtons = document.querySelectorAll("[data-video-mode]");
+const modelCards = document.querySelectorAll("[data-model-card]");
+
+const modelInput = document.querySelector("#model");
+const ratioInput = document.querySelector("#aspect-ratio");
+const imageQualityInput = document.querySelector("#image-quality");
+const imageCountInput = document.querySelector("#image-count");
+const videoResolutionInput = document.querySelector("#video-resolution");
+const videoDurationInput = document.querySelector("#video-duration");
+const promptInput = document.querySelector("#prompt");
+const generateButton = document.querySelector("#generate");
+const clearButton = document.querySelector("#clear");
+const message = document.querySelector("#message");
+const stage = document.querySelector("#image-stage");
+const downloadCurrentButton = document.querySelector("#download-image");
+
+const imageFileInput = document.querySelector("#reference-file");
 const dropZone = document.querySelector("#drop-zone");
 const referenceList = document.querySelector("#reference-list");
-const uploadPlaceholder = document.querySelector("#upload-placeholder");
-const uploadTitle = document.querySelector("#upload-title");
-const uploadDesc = document.querySelector("#upload-desc");
 const videoStartInput = document.querySelector("#video-start-frame");
 const videoEndInput = document.querySelector("#video-end-frame");
 const videoReferenceInput = document.querySelector("#video-reference-file");
@@ -26,169 +55,116 @@ const videoReferenceZone = document.querySelector("#video-reference-zone");
 const startFrameList = document.querySelector("#start-frame-list");
 const endFrameList = document.querySelector("#end-frame-list");
 const videoReferenceList = document.querySelector("#video-reference-list");
-const modelInput = document.querySelector("#model");
-const aspectRatioInput = document.querySelector("#aspect-ratio");
-const imageQualityInput = document.querySelector("#image-quality");
-const imageCountInput = document.querySelector("#image-count");
-const videoResolutionInput = document.querySelector("#video-resolution");
-const videoDurationInput = document.querySelector("#video-duration");
-const promptInput = document.querySelector("#prompt");
-const generateButton = document.querySelector("#generate");
-const clearButton = document.querySelector("#clear");
-const clearHistoryButton = document.querySelector("#clear-history");
-const downloadButton = document.querySelector("#download-image");
-const downloadAssetsButton = document.querySelector("#download-assets");
-const clearAssetsButton = document.querySelector("#clear-assets");
-const assetCount = document.querySelector("#asset-count");
-const historyCount = document.querySelector("#history-count");
-const imageStage = document.querySelector("#image-stage");
-const message = document.querySelector("#message");
-const modeLabel = document.querySelector("#mode-label");
+
 const historyList = document.querySelector("#history-list");
+const historyCount = document.querySelector("#history-count");
+const clearHistoryButton = document.querySelector("#clear-history");
 const assetList = document.querySelector("#asset-list");
+const assetCount = document.querySelector("#asset-count");
+const clearAssetsButton = document.querySelector("#clear-assets");
+const downloadAssetsButton = document.querySelector("#download-assets");
+const assetKindButtons = document.querySelectorAll("[data-asset-kind]");
+const assetSourceButtons = document.querySelectorAll("[data-asset-source]");
+const dashboardRecent = document.querySelector("#dashboard-recent");
 
-const KEY_STORE = "museframe-api-key";
-const HISTORY_STORE = "museframe-history";
-const ASSET_STORE = "museframe-assets";
-const ACCESS_STORE = "museframe-access-ok";
+const metricTotal = document.querySelector("#metric-total");
+const metricImage = document.querySelector("#metric-image");
+const metricVideo = document.querySelector("#metric-video");
+const metricHistory = document.querySelector("#metric-history");
+
 const ACCESS_PASSWORD = "8611";
-const MAX_REFERENCE_FILES = 8;
-const MAX_VIDEO_REFERENCE_FILES = 6;
-const ASSET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-let referenceFiles = [];
-let videoStartFrame = [];
-let videoEndFrame = [];
-let videoReferenceFiles = [];
-let currentImageUrls = [];
-let activeTool = "image";
+const ACCESS_STORE = "museframe_access_ok";
+const KEY_STORE = "museframe_user_api_key";
+const HISTORY_STORE = "museframe_prompt_history_v3";
+const ASSET_STORE = "museframe_assets_v4";
+const ASSET_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const POLL_INTERVAL_MS = 4000;
+const POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 const IMAGE_MODELS = [
-  ["gpt-image-2.5", "gpt-image-2.5"],
-  ["gpt-image-2", "gpt-image-2"],
-  ["gpt-image-2-vip", "gpt-image-2-vip"],
-  ["gpt-image-2.5-flare", "gpt-image-2.5-flare"],
-  ["gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst"],
-  ["nano-banana", "nano-banana"],
-  ["nano-banana-fast", "nano-banana-fast"],
-  ["nano-banana-2", "nano-banana-2"],
-  ["nano-banana-2-cl", "nano-banana-2-cl"],
-  ["nano-banana-2-2k-cl", "nano-banana-2-2k-cl"],
-  ["nano-banana-2-4k-cl", "nano-banana-2-4k-cl"],
-  ["nano-banana-pro", "nano-banana-pro"],
-  ["nano-banana-pro-vt", "nano-banana-pro-vt"],
-  ["nano-banana-pro-cl", "nano-banana-pro-cl"],
-  ["nano-banana-pro-vip", "nano-banana-pro-vip"],
-  ["nano-banana-pro-4k-vip", "nano-banana-pro-4k-vip"],
+  { value: "nano-banana-pro", label: "Nano Banana Pro" },
+  { value: "nano-banana", label: "Nano Banana" },
+  { value: "nano-banana-fast", label: "Nano Banana Fast" },
+  { value: "nano-banana-2", label: "Nano Banana 2" },
+  { value: "nano-banana-2-cl", label: "Nano Banana 2 CL" },
+  { value: "nano-banana-2-2k-cl", label: "Nano Banana 2 2K CL" },
+  { value: "nano-banana-2-4k-cl", label: "Nano Banana 2 4K CL" },
+  { value: "nano-banana-pro-vt", label: "Nano Banana Pro VT" },
+  { value: "nano-banana-pro-cl", label: "Nano Banana Pro CL" },
+  { value: "nano-banana-pro-vip", label: "Nano Banana Pro VIP" },
+  { value: "nano-banana-pro-4k-vip", label: "Nano Banana Pro 4K VIP" },
+  { value: "gpt-image-2.5", label: "GPT Image 2.5" },
+  { value: "gpt-image-2", label: "GPT Image 2" },
+  { value: "gpt-image-2-vip", label: "GPT Image 2 VIP" },
+  { value: "gpt-image-2.5-flare", label: "GPT Image 2.5 Flare" },
+  { value: "gpt-image-2.5-sunburst", label: "GPT Image 2.5 Sunburst" },
 ];
 
 const VIDEO_MODELS = [
-  ["minimax-h3", "minimax-h3"],
+  { value: "minimax-h3", label: "MiniMax H3" },
 ];
 
 const IMAGE_RATIOS = [
-  ["1024x1024", "1:1 方图"],
-  ["1280x720", "16:9 横版"],
-  ["720x1280", "9:16 竖版"],
-  ["1152x864", "4:3 横版"],
-  ["864x1152", "3:4 竖版"],
-  ["1536x1024", "3:2 横版"],
-  ["1024x1536", "2:3 竖版"],
-  ["1120x896", "5:4 横版"],
-  ["896x1120", "4:5 竖版"],
-  ["1920x832", "21:9 超宽"],
-  ["832x1920", "9:21 长竖"],
+  { value: "1:1", label: "1:1 方图" },
+  { value: "4:5", label: "4:5 商品图" },
+  { value: "3:4", label: "3:4 竖图" },
+  { value: "9:16", label: "9:16 竖屏" },
+  { value: "16:9", label: "16:9 横屏" },
+  { value: "3:2", label: "3:2 横图" },
+  { value: "2:3", label: "2:3 竖图" },
+  { value: "21:9", label: "21:9 宽屏" },
 ];
 
 const VIDEO_RATIOS = [
-  ["portrait", "9:16 竖屏"],
-  ["landscape", "16:9 横屏"],
+  { value: "9:16", label: "9:16 竖屏" },
+  { value: "16:9", label: "16:9 横屏" },
+  { value: "1:1", label: "1:1 方屏" },
 ];
+
+let activeTool = "image";
+let imageMode = "text";
+let videoMode = "text";
+let assetKindFilter = "all";
+let assetSourceFilter = "all";
+let imageRefs = [];
+let startFrame = null;
+let endFrame = null;
+let videoRefs = [];
+let currentResults = [];
+let pendingPollTimers = [];
 
 init();
 
 function init() {
-  initGate();
-
-  const savedKey = localStorage.getItem(KEY_STORE) || "";
-  if (savedKey) {
-    apiKeyInput.value = savedKey;
-    setBalance("Key 已保存", maskKey(savedKey));
-  }
-
-  saveKeyButton.addEventListener("click", saveKey);
-  checkBalanceButton.addEventListener("click", checkBalance);
-  generateButton.addEventListener("click", generate);
-  clearButton.addEventListener("click", clearForm);
-  clearHistoryButton.addEventListener("click", clearHistory);
-  downloadButton.addEventListener("click", downloadCurrentImage);
-  downloadAssetsButton.addEventListener("click", downloadAllAssets);
-  clearAssetsButton.addEventListener("click", clearAssets);
-  toolTabs.forEach((tab) => {
-    tab.addEventListener("click", () => setActiveTool(tab.dataset.tool || "image"));
-  });
-  modelInput.addEventListener("change", updateQualityHint);
-  imageQualityInput.addEventListener("change", updateQualityHint);
-
-  fileInput.addEventListener("change", async () => {
-    await addReferenceFiles(fileInput.files);
-    fileInput.value = "";
-  });
-
-  dropZone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    dropZone.classList.add("dragover");
-  });
-
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-
-  dropZone.addEventListener("drop", async (event) => {
-    event.preventDefault();
-    dropZone.classList.remove("dragover");
-    await addReferenceFiles(event.dataTransfer.files);
-  });
-
-  videoStartInput.addEventListener("change", async () => {
-    await addVideoFrameFiles("start", videoStartInput.files);
-    videoStartInput.value = "";
-  });
-  videoEndInput.addEventListener("change", async () => {
-    await addVideoFrameFiles("end", videoEndInput.files);
-    videoEndInput.value = "";
-  });
-  videoReferenceInput.addEventListener("change", async () => {
-    await addVideoFrameFiles("reference", videoReferenceInput.files);
-    videoReferenceInput.value = "";
-  });
-  setupVideoDropZone(startFrameZone, "start");
-  setupVideoDropZone(endFrameZone, "end");
-  setupVideoDropZone(videoReferenceZone, "reference");
-
+  bindAccess();
+  bindNavigation();
+  bindKeyControls();
+  bindModeControls();
+  bindUploads();
+  bindActions();
+  hydrateKey();
+  setActiveTool("image");
   renderHistory();
   renderAssets();
-  setActiveTool("image");
+  renderDashboard();
 }
 
-function initGate() {
-  if (sessionStorage.getItem(ACCESS_STORE) === "1") {
-    unlockApp();
-    return;
-  }
-  accessPasswordInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") verifyAccess();
+function bindAccess() {
+  const alreadyUnlocked = localStorage.getItem(ACCESS_STORE) === "1";
+  if (alreadyUnlocked) unlockApp();
+
+  unlockButton.addEventListener("click", () => {
+    if (accessPasswordInput.value.trim() === ACCESS_PASSWORD) {
+      localStorage.setItem(ACCESS_STORE, "1");
+      unlockApp();
+      return;
+    }
+    gateMessage.textContent = "访问密码不正确。";
   });
-  unlockButton.addEventListener("click", verifyAccess);
-  setTimeout(() => accessPasswordInput.focus(), 80);
-}
 
-function verifyAccess() {
-  if (accessPasswordInput.value.trim() !== ACCESS_PASSWORD) {
-    gateMessage.textContent = "密码不对。";
-    accessPasswordInput.select();
-    return;
-  }
-  sessionStorage.setItem(ACCESS_STORE, "1");
-  unlockApp();
+  accessPasswordInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") unlockButton.click();
+  });
 }
 
 function unlockApp() {
@@ -196,73 +172,241 @@ function unlockApp() {
   appShell.classList.remove("locked");
 }
 
+function bindNavigation() {
+  navItems.forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.nav;
+      if (target === "image" || target === "video") {
+        setActiveTool(target);
+        showPage("studio");
+        setNavActive(target);
+        return;
+      }
+      showPage(target);
+      setNavActive(target);
+    });
+  });
+
+  navShortcuts.forEach((button) => {
+    button.addEventListener("click", () => {
+      showPage(button.dataset.navShortcut);
+      setNavActive(button.dataset.navShortcut);
+    });
+  });
+}
+
+function showPage(pageName) {
+  pagePanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.pagePanel === pageName);
+  });
+  renderDashboard();
+  renderAssets();
+}
+
+function setNavActive(name) {
+  navItems.forEach((button) => {
+    button.classList.toggle("active", button.dataset.nav === name);
+  });
+}
+
 function setActiveTool(tool) {
-  activeTool = tool === "video" ? "video" : "image";
-  toolTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tool === activeTool));
+  activeTool = tool;
+  const isImage = activeTool === "image";
+  document.querySelectorAll(".image-only").forEach((node) => node.classList.toggle("hidden", !isImage));
+  document.querySelectorAll(".video-only").forEach((node) => node.classList.toggle("hidden", isImage));
+  imageModeTabs.classList.toggle("hidden", !isImage);
+  videoModeTabs.classList.toggle("hidden", isImage);
 
-  document.querySelectorAll(".image-only").forEach((item) => item.classList.toggle("hidden", activeTool !== "image"));
-  document.querySelectorAll(".video-only").forEach((item) => item.classList.toggle("hidden", activeTool !== "video"));
+  heroEyebrow.textContent = isImage ? "AI IMAGE STUDIO" : "AI VIDEO STUDIO";
+  heroCopy.textContent = isImage
+    ? "输入提示词生成商品图；上传参考图后可以做图生图、产品主图、场景图、广告素材和包装视觉。"
+    : "输入视频脚本或上传首帧、尾帧、多图参考，生成短视频素材，适合广告短片、产品展示和剧情钩子测试。";
+  composerTitle.textContent = isImage ? "AI 生图" : "AI 生视频";
+  composerSubtitle.textContent = isImage
+    ? "文生图 / 图生图，结果自动存入作品库。"
+    : "文生视频 / 图生视频，异步生成，完成后自动进入作品库。";
+  generateButton.textContent = isImage ? "生成图片" : "生成视频";
+  promptInput.placeholder = isImage
+    ? "例如：高级米白色收纳盒产品主图，柔和自然光，干净背景，真实材质，商业摄影质感"
+    : "例如：镜头缓慢推进，家庭厨房里产品一秒救场，人物表情从怀疑到震惊，真实广告质感";
 
-  const models = activeTool === "video" ? VIDEO_MODELS : IMAGE_MODELS;
-  const ratios = activeTool === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
-  modelInput.innerHTML = models.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
-  aspectRatioInput.innerHTML = ratios.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
-  updateQualityHint();
+  populateModelOptions(isImage ? IMAGE_MODELS : VIDEO_MODELS);
+  populateRatioOptions(isImage ? IMAGE_RATIOS : VIDEO_RATIOS);
+  syncModeVisibility();
+  syncModelCards();
+  resetStage();
+}
 
-  if (activeTool === "video") {
-    heroEyebrow.textContent = "AI VIDEO STUDIO";
-    heroCopy.textContent = "输入视频脚本或上传首帧/参考图，生成短视频素材。适合广告短片、产品展示、剧情钩子和投放素材测试。";
-    uploadTitle.textContent = "点击上传 / 拖入首帧或参考图";
-    uploadDesc.textContent = "可放产品图、角色图、首帧图、场景参考图，最多 8 张。";
-    promptInput.placeholder = "例如：8秒竖屏短视频，一个年轻女性在极简卧室里打开高级收纳盒，镜头从近景推入，展示产品材质和容量，真实商业广告质感。";
-    generateButton.textContent = "生成视频";
-  } else {
-    heroEyebrow.textContent = "PRODUCT IMAGE STUDIO";
-    heroCopy.textContent = "输入提示词生成商品图；上传参考图后可做图生图。适合产品主图、场景图、广告素材、包装视觉和商单提案。";
-    uploadTitle.textContent = "点击上传 / 拖入参考图";
-    uploadDesc.textContent = "可放产品图、Logo、材质图、场景参考图，最多 8 张。";
-    promptInput.placeholder = "例如：生成一张高级真实的真空压缩收纳袋商品图，暖米白背景，鼠尾草绿文字，产品正面朝前，质感清晰，1:1 电商主图风格。";
-    generateButton.textContent = "生成图片";
+function populateModelOptions(models) {
+  modelInput.innerHTML = models.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
+  modelInput.value = activeTool === "image" ? "nano-banana-pro" : "minimax-h3";
+}
+
+function populateRatioOptions(ratios) {
+  ratioInput.innerHTML = ratios.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
+  ratioInput.value = activeTool === "image" ? "1:1" : "9:16";
+}
+
+function bindKeyControls() {
+  saveKeyButton.addEventListener("click", saveApiKey);
+  saveKeySettings.addEventListener("click", () => {
+    apiKeyInput.value = apiKeySettings.value;
+    saveApiKey();
+  });
+  checkBalanceButton.addEventListener("click", checkKey);
+  checkKeySettings.addEventListener("click", () => {
+    apiKeyInput.value = apiKeySettings.value;
+    checkKey();
+  });
+  apiKeyInput.addEventListener("input", () => {
+    apiKeySettings.value = apiKeyInput.value;
+  });
+  apiKeySettings.addEventListener("input", () => {
+    apiKeyInput.value = apiKeySettings.value;
+  });
+}
+
+function hydrateKey() {
+  const savedKey = localStorage.getItem(KEY_STORE) || "";
+  apiKeyInput.value = savedKey;
+  apiKeySettings.value = savedKey;
+  updateKeyState(savedKey);
+}
+
+function saveApiKey() {
+  const key = apiKeyInput.value.trim();
+  if (!key) {
+    setMessage("请先输入 Grsai API Key。", "error");
+    return;
   }
-
-  updateModeLabel();
+  localStorage.setItem(KEY_STORE, key);
+  updateKeyState(key);
+  setMessage("API Key 已保存到当前浏览器。", "ok");
 }
 
-function updateQualityHint() {
-  if (activeTool !== "image" || !imageQualityInput) return;
-  const model = modelInput.value;
-  const quality = imageQualityInput.value;
-  const isNanoBanana = model.startsWith("nano-banana");
-  const supportsHighSpec = ["gpt-image-2-vip", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"].includes(model) || isNanoBanana;
-  if (quality === "4k" && !supportsHighSpec) {
-    setMessage("当前模型不支持 4K 参数，已按标准规格提交。需要 4K 建议选择 flare / sunburst。", "error");
-  } else if (isNanoBanana && quality === "4k") {
-    setMessage("nano-banana 将按 imageSize=4K 提交，建议优先用 4k/pro/vip 系列。", "success");
-  } else if (isNanoBanana && quality === "high") {
-    setMessage("nano-banana 将按 imageSize=2K 提交。");
-  } else if (quality === "4k") {
-    setMessage("已选择超清 4K：会使用更高规格参数，消耗会更高。", "success");
-  } else if (quality === "high") {
-    setMessage("已选择高清规格，适合正式商品图。");
+function updateKeyState(key) {
+  if (!key) {
+    balanceValue.textContent = "未设置 Key";
+    balanceDetail.textContent = "每个用户输入自己的 Grsai API Key，仅保存在当前浏览器。";
+    keyStateTitle.textContent = "未设置 Key";
+    keyStateDesc.textContent = "在顶部输入自己的 Grsai API Key，保存后即可生成。";
+    return;
+  }
+  balanceValue.textContent = "Key 已保存";
+  balanceDetail.textContent = maskKey(key);
+  keyStateTitle.textContent = "Key 已保存";
+  keyStateDesc.textContent = maskKey(key);
+}
+
+async function checkKey() {
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
+  if (!key) {
+    setMessage("请先输入 Grsai API Key。", "error");
+    return;
+  }
+  try {
+    const form = new FormData();
+    form.append("apiKey", key);
+    const data = await fetchJson("/api/balance", { method: "POST", body: form });
+    localStorage.setItem(KEY_STORE, key);
+    updateKeyState(key);
+    setMessage(data.detail || "Key 可用。", "ok");
+  } catch (error) {
+    setMessage(`检测失败：${friendlyError(error)}`, "error");
   }
 }
 
-function getActiveUploadFiles() {
-  if (activeTool === "video") {
-    return [...videoStartFrame, ...videoEndFrame, ...videoReferenceFiles];
-  }
-  return referenceFiles;
+function bindModeControls() {
+  imageModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      imageMode = button.dataset.imageMode;
+      imageModeButtons.forEach((item) => item.classList.toggle("active", item === button));
+      syncModeVisibility();
+    });
+  });
+
+  videoModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      videoMode = button.dataset.videoMode;
+      videoModeButtons.forEach((item) => item.classList.toggle("active", item === button));
+      syncModeVisibility();
+    });
+  });
+
+  modelCards.forEach((card) => {
+    card.addEventListener("click", () => {
+      const model = card.dataset.modelCard;
+      if ([...modelInput.options].some((option) => option.value === model)) {
+        modelInput.value = model;
+        syncModelCards();
+      }
+    });
+  });
+  modelInput.addEventListener("change", syncModelCards);
 }
 
-function updateModeLabel() {
-  const hasUploads = getActiveUploadFiles().length > 0;
-  modeLabel.textContent = hasUploads
-    ? (activeTool === "video" ? "首尾帧 / 多图参考视频模式" : "图生图模式")
-    : (activeTool === "video" ? "文生视频模式" : "文生图模式");
+function syncModeVisibility() {
+  const isImage = activeTool === "image";
+  const mode = isImage ? imageMode : videoMode;
+  const isReference = mode === "reference";
+  document.querySelectorAll(".image-only").forEach((node) => node.classList.toggle("hidden", !isImage));
+  document.querySelectorAll(".video-only").forEach((node) => node.classList.toggle("hidden", isImage));
+  document.querySelectorAll(".drop-zone.image-only").forEach((node) => node.classList.toggle("hidden", !isImage || !isReference));
+  document.querySelectorAll(".video-frames.video-only").forEach((node) => node.classList.toggle("hidden", isImage || !isReference));
+  referenceList.classList.toggle("hidden", !isImage || !isReference);
+  startFrameList.classList.toggle("hidden", isImage || !isReference);
+  endFrameList.classList.toggle("hidden", isImage || !isReference);
+  videoReferenceList.classList.toggle("hidden", isImage || !isReference);
+  modeLabel.textContent = `${mode === "text" ? "文生" : "图生"}${isImage ? "图" : "视频"}模式`;
 }
 
-function setupVideoDropZone(zone, slot) {
-  if (!zone) return;
+function syncModelCards() {
+  modelCards.forEach((card) => {
+    card.classList.toggle("active", card.dataset.modelCard === modelInput.value);
+  });
+}
+
+function bindUploads() {
+  dropZone.addEventListener("click", () => imageFileInput.click());
+  imageFileInput.addEventListener("change", async () => {
+    imageRefs = await filesToItems([...imageFileInput.files].slice(0, 8));
+    renderReferenceList();
+  });
+  bindDrop(dropZone, async (files) => {
+    imageRefs = await filesToItems(files.slice(0, 8));
+    renderReferenceList();
+  });
+
+  startFrameZone.addEventListener("click", () => videoStartInput.click());
+  endFrameZone.addEventListener("click", () => videoEndInput.click());
+  videoReferenceZone.addEventListener("click", () => videoReferenceInput.click());
+  videoStartInput.addEventListener("change", async () => {
+    [startFrame] = await filesToItems([...videoStartInput.files].slice(0, 1));
+    renderVideoFrames();
+  });
+  videoEndInput.addEventListener("change", async () => {
+    [endFrame] = await filesToItems([...videoEndInput.files].slice(0, 1));
+    renderVideoFrames();
+  });
+  videoReferenceInput.addEventListener("change", async () => {
+    videoRefs = await filesToItems([...videoReferenceInput.files].slice(0, 6));
+    renderVideoFrames();
+  });
+  bindDrop(startFrameZone, async (files) => {
+    [startFrame] = await filesToItems(files.slice(0, 1));
+    renderVideoFrames();
+  });
+  bindDrop(endFrameZone, async (files) => {
+    [endFrame] = await filesToItems(files.slice(0, 1));
+    renderVideoFrames();
+  });
+  bindDrop(videoReferenceZone, async (files) => {
+    videoRefs = await filesToItems(files.slice(0, 6));
+    renderVideoFrames();
+  });
+}
+
+function bindDrop(zone, onFiles) {
   zone.addEventListener("dragover", (event) => {
     event.preventDefault();
     zone.classList.add("dragover");
@@ -271,418 +415,318 @@ function setupVideoDropZone(zone, slot) {
   zone.addEventListener("drop", async (event) => {
     event.preventDefault();
     zone.classList.remove("dragover");
-    await addVideoFrameFiles(slot, event.dataTransfer.files);
+    const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith("image/"));
+    if (files.length) await onFiles(files);
   });
 }
 
-async function addVideoFrameFiles(slot, files) {
-  const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
-  if (!images.length) return;
-
-  setMessage("正在优化视频参考图体积...");
-  const optimized = [];
-  for (const file of images) {
-    optimized.push(await compressImage(file));
-  }
-
-  if (slot === "start") {
-    videoStartFrame = optimized.slice(0, 1);
-    setMessage("首帧已添加。", "success");
-  } else if (slot === "end") {
-    videoEndFrame = optimized.slice(0, 1);
-    setMessage("尾帧已添加。", "success");
-  } else {
-    videoReferenceFiles = [...videoReferenceFiles, ...optimized].slice(0, MAX_VIDEO_REFERENCE_FILES);
-    setMessage(`已添加 ${videoReferenceFiles.length} 张视频参考图。`, "success");
-  }
-
-  updateModeLabel();
-  renderVideoFrames();
-}
-
-function renderVideoFrames() {
-  renderFrameSlot(startFrameList, videoStartFrame, "首帧", () => {
-    videoStartFrame = [];
-    renderVideoFrames();
-    updateModeLabel();
-  });
-  renderFrameSlot(endFrameList, videoEndFrame, "尾帧", () => {
-    videoEndFrame = [];
-    renderVideoFrames();
-    updateModeLabel();
-  });
-  renderReferenceSlot(videoReferenceList, videoReferenceFiles);
-}
-
-function renderFrameSlot(container, files, label, onRemove) {
-  if (!container) return;
-  container.innerHTML = "";
-  const zone = container.closest(".frame-drop-zone");
-  const placeholder = zone?.querySelector(".frame-placeholder");
-  if (placeholder) placeholder.style.display = files.length ? "none" : "grid";
-  if (!files.length) return;
-
-  const previewUrl = URL.createObjectURL(files[0]);
-  container.innerHTML = `
-    <div class="reference-count">${label}已添加</div>
-    <div class="reference-item">
-      <img src="${previewUrl}" alt="${label}">
-      <button type="button">×</button>
-    </div>
-  `;
-  container.querySelector("button").addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onRemove();
-  });
-}
-
-function renderReferenceSlot(container, files) {
-  if (!container) return;
-  container.innerHTML = "";
-  const zone = container.closest(".frame-drop-zone");
-  const placeholder = zone?.querySelector(".frame-placeholder");
-  if (placeholder) placeholder.style.display = files.length ? "none" : "grid";
-  if (!files.length) return;
-
-  const count = document.createElement("div");
-  count.className = "reference-count";
-  count.textContent = `已添加 ${files.length} 张参考图`;
-  container.appendChild(count);
-
-  files.forEach((file, index) => {
-    const item = document.createElement("div");
-    item.className = "reference-item";
-    const previewUrl = URL.createObjectURL(file);
-    item.innerHTML = `
-      <img src="${previewUrl}" alt="视频参考图 ${index + 1}">
-      <button type="button">×</button>
-    `;
-    item.querySelector("button").addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      videoReferenceFiles.splice(index, 1);
-      renderVideoFrames();
-      updateModeLabel();
+function bindActions() {
+  generateButton.addEventListener("click", generate);
+  clearButton.addEventListener("click", clearCurrentInputs);
+  downloadCurrentButton.addEventListener("click", downloadCurrent);
+  clearHistoryButton.addEventListener("click", clearHistory);
+  clearAssetsButton.addEventListener("click", clearAssets);
+  downloadAssetsButton.addEventListener("click", downloadAllAssets);
+  assetKindButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      assetKindFilter = button.dataset.assetKind;
+      assetKindButtons.forEach((item) => item.classList.toggle("active", item === button));
+      renderAssets();
     });
-    container.appendChild(item);
   });
-}
-
-function saveKey() {
-  const key = apiKeyInput.value.trim();
-  if (!key) {
-    setMessage("先输入 Grsai API Key。", "error");
-    return;
-  }
-  localStorage.setItem(KEY_STORE, key);
-  setBalance("Key 已保存", maskKey(key));
-  setMessage("你的 Key 已保存到当前浏览器。别人使用时需要输入自己的 Key。", "success");
-}
-
-async function checkBalance() {
-  const key = getKey();
-  if (!key) return;
-
-  setBalance("检测中", "正在确认 Key 是否可用。");
-  try {
-    const formData = new FormData();
-    formData.append("apiKey", key);
-    formData.append("model", modelInput.value);
-    const data = await postForm("/api/balance", formData);
-    setBalance(data.balance || "Key 可用", data.detail || maskKey(key));
-    setMessage("Key 可用。真实余额请以 Grsai 后台为准。", "success");
-  } catch (error) {
-    setBalance("检测失败", friendlyError(error));
-    setMessage(friendlyError(error), "error");
-  }
+  assetSourceButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      assetSourceFilter = button.dataset.assetSource;
+      assetSourceButtons.forEach((item) => item.classList.toggle("active", item === button));
+      renderAssets();
+    });
+  });
 }
 
 async function generate() {
-  const key = getKey();
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
   const prompt = promptInput.value.trim();
-  if (!key || !prompt) {
-    if (!prompt) {
-      setMessage("先输入提示词。", "error");
-      promptInput.focus();
-    }
+  if (!key) {
+    setMessage("请先输入并保存 Grsai API Key。", "error");
+    return;
+  }
+  if (!prompt) {
+    setMessage("先输入提示词。", "error");
     return;
   }
 
-  currentImageUrls = [];
-  const uploadFiles = getActiveUploadFiles();
-  downloadButton.disabled = true;
-  savePrompt(prompt);
-  showLoading(
-    activeTool === "video" ? "正在提交视频任务" : "正在提交生图任务",
-    uploadFiles.length ? "正在上传参考图并连接 Grsai。" : `正在连接 Grsai ${activeTool === "video" ? "生视频" : "文生图"}接口。`,
-  );
-  setLoading(true, activeTool === "video" ? "生成视频中..." : "生成中...");
+  const refs = getActiveFiles();
+  if (activeTool === "image" && imageMode === "reference" && refs.length === 0) {
+    setMessage("图生图模式需要先上传参考图。", "error");
+    return;
+  }
+  if (activeTool === "video" && videoMode === "reference" && refs.length === 0) {
+    setMessage("图生视频模式建议至少上传首帧、尾帧或参考图。", "error");
+    return;
+  }
+
+  localStorage.setItem(KEY_STORE, key);
+  updateKeyState(key);
+  clearPendingPolls();
+  currentResults = [];
+  setLoading(activeTool === "image" ? "正在生成图片" : "正在生成视频");
+  setMessage("任务已提交，正在等待结果。", "ok");
+  generateButton.disabled = true;
 
   try {
-    const formData = new FormData();
-    formData.append("mediaType", activeTool);
-    formData.append("prompt", prompt);
-    formData.append("model", modelInput.value);
-    formData.append("aspectRatio", aspectRatioInput.value);
-    formData.append("imageQuality", activeTool === "image" ? imageQualityInput.value : "");
-    formData.append("count", activeTool === "video" ? "1" : imageCountInput.value);
-    formData.append("resolution", videoResolutionInput.value);
-    formData.append("duration", videoDurationInput.value);
-    formData.append("mode", uploadFiles.length ? `${activeTool}-with-reference` : `${activeTool}-text`);
-    formData.append("hasStartFrame", videoStartFrame.length ? "1" : "");
-    formData.append("hasEndFrame", videoEndFrame.length ? "1" : "");
-    formData.append("videoReferenceCount", String(videoReferenceFiles.length));
-    formData.append("apiKey", key);
-    uploadFiles.forEach((file) => formData.append("images", file));
+    const form = new FormData();
+    form.append("apiKey", key);
+    form.append("mediaType", activeTool);
+    form.append("mode", activeTool === "image" ? imageMode : videoMode);
+    form.append("model", modelInput.value);
+    form.append("prompt", prompt);
+    form.append("aspectRatio", ratioInput.value);
+    form.append("imageQuality", imageQualityInput.value);
+    form.append("count", activeTool === "image" ? imageCountInput.value : "1");
+    form.append("resolution", videoResolutionInput.value);
+    form.append("duration", videoDurationInput.value);
+    refs.forEach((item) => form.append("files", item.file, item.file.name));
 
-    const created = await postForm("/api/generate", formData);
-    const taskIds = normalizeTaskIds(created);
-    const directImages = normalizeImageUrls(created);
-    if (directImages.length) {
-      finish(directImages);
+    const data = await fetchJson("/api/generate", { method: "POST", body: form });
+    savePrompt(prompt, data);
+    await handleGenerateResponse(data, prompt);
+  } catch (error) {
+    resetStage("暂未生成成功", friendlyError(error));
+    setMessage(`生成失败：${friendlyError(error)}`, "error");
+  } finally {
+    generateButton.disabled = false;
+  }
+}
+
+async function handleGenerateResponse(data, prompt) {
+  const mediaType = data.mediaType || activeTool;
+  if (Array.isArray(data.images) && data.images.length) {
+    finishResults(data.images.map((url) => ({ url, mediaType: "image" })), prompt);
+    return;
+  }
+  if (data.imageUrl || data.videoUrl || data.url) {
+    const url = data.imageUrl || data.videoUrl || data.url;
+    finishResults([{ url, mediaType: inferMediaType(url, mediaType) }], prompt);
+    return;
+  }
+  if (Array.isArray(data.tasks) && data.tasks.length) {
+    await pollTasks(data.tasks, prompt, mediaType);
+    return;
+  }
+  if (data.taskId || data.id) {
+    await pollTasks([{ taskId: data.taskId || data.id }], prompt, mediaType);
+    return;
+  }
+  throw new Error(JSON.stringify(data));
+}
+
+async function pollTasks(tasks, prompt, mediaType) {
+  const started = Date.now();
+  let completed = [];
+  setLoading(`${tasks.length} 个任务生成中`);
+
+  while (Date.now() - started < POLL_TIMEOUT_MS) {
+    await sleep(POLL_INTERVAL_MS);
+    const checks = await Promise.all(tasks.map((task) => fetchTask(task.taskId || task.id)));
+    completed = checks
+      .map((item) => normalizeTaskResult(item, mediaType))
+      .filter(Boolean);
+    updateLoadingProgress(completed.length, tasks.length);
+    if (completed.length >= tasks.length) {
+      finishResults(completed, prompt);
       return;
     }
-    if (!taskIds.length) throw new Error(`${activeTool === "video" ? "生视频" : "生图"}接口没有返回任务 ID。`);
-
-    const resultUrls = await pollTasks(taskIds, key);
-    finish(resultUrls);
-  } catch (error) {
-    const detail = friendlyError(error);
-    showError(prompt, detail);
-    setMessage(`生成失败：${detail}`, "error");
-  } finally {
-    setLoading(false);
   }
+  throw new Error("生成任务等待超时，请稍后在平台记录里查看。");
 }
 
-function normalizeTaskIds(data) {
-  if (Array.isArray(data?.tasks)) return data.tasks.map((item) => item.taskId).filter(Boolean);
-  return data?.taskId ? [data.taskId] : [];
-}
-
-function normalizeImageUrls(data) {
-  if (Array.isArray(data?.images)) return data.images.filter(Boolean);
-  return data?.imageUrl ? [data.imageUrl] : [];
-}
-
-async function postForm(url, formData) {
-  const response = await fetch(url, {
-    method: "POST",
-    body: formData,
+async function fetchTask(taskId) {
+  if (!taskId) return null;
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
+  return fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
+    headers: { "X-Image-Api-Key": key },
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `接口返回 ${response.status}`);
-  return data;
 }
 
-async function pollTasks(taskIds, key) {
-  const remaining = new Set(taskIds);
-  const images = [];
-  for (let i = 1; i <= 120; i += 1) {
-    await sleep(3000);
-    showLoading(
-      activeTool === "video" ? "正在生成视频" : "正在生成图片",
-      `已完成 ${images.length}/${taskIds.length} 个结果，正在第 ${i} 次查询。`,
-    );
-
-    for (const taskId of Array.from(remaining)) {
-      const data = await fetchJson(`/api/result?id=${encodeURIComponent(taskId)}`, {
-        headers: {"X-Image-Api-Key": key},
-      });
-      if (data.imageUrl) {
-        images.push(data.imageUrl);
-        remaining.delete(taskId);
-      } else if (data.status && !["running", "pending", "processing"].includes(data.status)) {
-        remaining.delete(taskId);
-      }
-    }
-
-    if (!remaining.size && images.length) return images;
+function normalizeTaskResult(data, mediaType) {
+  if (!data) return null;
+  const status = `${data.status || ""}`.toLowerCase();
+  const url = data.imageUrl || data.videoUrl || data.url || firstResultUrl(data);
+  if (url) return { url, mediaType: inferMediaType(url, mediaType), status: "success" };
+  if (status === "failed" || status === "error") {
+    throw new Error(data.error || JSON.stringify(data));
   }
-  throw new Error("生成时间过长，请稍后重试。");
+  return null;
+}
+
+function firstResultUrl(data) {
+  if (!Array.isArray(data.results)) return "";
+  const found = data.results.find((item) => item.url || item.imageUrl || item.videoUrl);
+  return found ? found.url || found.imageUrl || found.videoUrl : "";
+}
+
+function finishResults(results, prompt) {
+  currentResults = results;
+  renderCurrentResults(results);
+  saveAssetBatch(results, prompt);
+  setMessage(`生成成功，已保存 ${results.length} 个作品到作品库。`, "ok");
+  renderAssets();
+  renderDashboard();
+}
+
+function renderCurrentResults(results) {
+  if (!results.length) {
+    resetStage();
+    return;
+  }
+  const gridClass = results.length > 1 ? "result-grid" : "";
+  stage.innerHTML = `<div class="${gridClass}">${results.map(renderResultMedia).join("")}</div>`;
+  downloadCurrentButton.disabled = false;
+}
+
+function renderResultMedia(item) {
+  if (item.mediaType === "video") {
+    return `<video src="${escapeAttr(item.url)}" controls playsinline></video>`;
+  }
+  return `<img src="${escapeAttr(item.url)}" alt="MuseFrame generated result">`;
+}
+
+function getActiveFiles() {
+  if (activeTool === "image") return imageMode === "reference" ? imageRefs : [];
+  if (videoMode !== "reference") return [];
+  return [startFrame, endFrame, ...videoRefs].filter(Boolean);
+}
+
+function clearCurrentInputs() {
+  promptInput.value = "";
+  imageRefs = [];
+  startFrame = null;
+  endFrame = null;
+  videoRefs = [];
+  imageFileInput.value = "";
+  videoStartInput.value = "";
+  videoEndInput.value = "";
+  videoReferenceInput.value = "";
+  renderReferenceList();
+  renderVideoFrames();
+  resetStage();
+  setMessage("已清空当前输入。", "ok");
+}
+
+function setLoading(title) {
+  stage.innerHTML = `
+    <div class="empty-state">
+      <div class="loader"></div>
+      <h3>${escapeHtml(title)}</h3>
+      <p id="loading-progress">正在提交任务，请保持页面打开。</p>
+    </div>
+  `;
+  downloadCurrentButton.disabled = true;
+}
+
+function updateLoadingProgress(done, total) {
+  const node = document.querySelector("#loading-progress");
+  if (node) node.textContent = `已完成 ${done}/${total}，正在等待剩余任务。`;
+}
+
+function resetStage(title = "等待生成", detail = "输入提示词，或拖入参考图后生成。") {
+  stage.innerHTML = `
+    <div class="empty-state">
+      <span>✦</span>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(detail)}</p>
+    </div>
+  `;
+  currentResults = [];
+  downloadCurrentButton.disabled = true;
+}
+
+function renderReferenceList() {
+  referenceList.innerHTML = imageRefs.map((item, index) => refCard(item, `remove-image-ref="${index}"`)).join("");
+  referenceList.querySelectorAll("[remove-image-ref]").forEach((button) => {
+    button.addEventListener("click", () => {
+      imageRefs.splice(Number(button.getAttribute("remove-image-ref")), 1);
+      renderReferenceList();
+    });
+  });
+}
+
+function renderVideoFrames() {
+  startFrameList.innerHTML = startFrame ? refCard(startFrame, "remove-start-frame") : "";
+  endFrameList.innerHTML = endFrame ? refCard(endFrame, "remove-end-frame") : "";
+  videoReferenceList.innerHTML = videoRefs.map((item, index) => refCard(item, `remove-video-ref="${index}"`)).join("");
+  startFrameList.querySelector("[remove-start-frame]")?.addEventListener("click", () => {
+    startFrame = null;
+    renderVideoFrames();
+  });
+  endFrameList.querySelector("[remove-end-frame]")?.addEventListener("click", () => {
+    endFrame = null;
+    renderVideoFrames();
+  });
+  videoReferenceList.querySelectorAll("[remove-video-ref]").forEach((button) => {
+    button.addEventListener("click", () => {
+      videoRefs.splice(Number(button.getAttribute("remove-video-ref")), 1);
+      renderVideoFrames();
+    });
+  });
+}
+
+function refCard(item, removeAttr) {
+  return `
+    <div class="ref-card">
+      <img src="${escapeAttr(item.dataUrl)}" alt="">
+      <button type="button" ${removeAttr}>×</button>
+    </div>
+  `;
+}
+
+async function filesToItems(files) {
+  const items = [];
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) continue;
+    items.push({ file, dataUrl: await fileToDataUrl(file) });
+  }
+  return items;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `接口返回 ${response.status}`);
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    throw new Error(data?.error || `接口返回 ${response.status}`);
+  }
   return data;
 }
 
-function finish(imageUrls) {
-  currentImageUrls = imageUrls;
-  saveAssetBatch(imageUrls);
-  imageStage.innerHTML = activeTool === "video"
-    ? `<div class="result-grid count-1">${imageUrls.map((url, index) => `
-        <figure class="result-card">
-          <video src="${escapeHtml(url)}" controls playsinline></video>
-          <figcaption>
-            <span>视频 ${index + 1}</span>
-            <button type="button" class="inline-download" data-url="${escapeHtml(url)}" data-name="museframe-video-${index + 1}.${fileExtensionFor(url)}">下载</button>
-          </figcaption>
-        </figure>
-      `).join("")}</div>`
-    : `<div class="result-grid count-${Math.min(imageUrls.length, 4)}">
-        ${imageUrls.map((url, index) => `
-          <figure class="result-card">
-            <img src="${escapeHtml(url)}" alt="生成图片 ${index + 1}">
-            <figcaption>
-              <span>图片 ${index + 1}</span>
-              <button type="button" class="inline-download" data-url="${escapeHtml(url)}" data-name="museframe-image-${index + 1}.${fileExtensionFor(url)}">下载</button>
-            </figcaption>
-          </figure>
-        `).join("")}
-      </div>`;
-  bindInlineDownloads();
-  downloadButton.disabled = false;
-  setMessage(activeTool === "video" ? "视频生成完成。" : `生成完成，共 ${imageUrls.length} 张。`, "success");
-  renderAssets();
-}
-
-function showLoading(title, detail) {
-  imageStage.innerHTML = `
-    <div class="loading">
-      <div class="loading-orb"></div>
-      <strong>${escapeHtml(title)}</strong>
-      <span>${escapeHtml(detail)}</span>
-    </div>
-  `;
-}
-
-function showError(prompt, detail) {
-  imageStage.innerHTML = `
-    <div class="empty">
-      <strong>暂未生成成功</strong>
-      <span>${escapeHtml(detail || "请检查 API Key、模型名称或接口节点。")}</span>
-      <span>本次提示词：${escapeHtml(prompt.slice(0, 80))}${prompt.length > 80 ? "..." : ""}</span>
-    </div>
-  `;
-}
-
-async function addReferenceFiles(files) {
-  const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
-  if (!images.length) return;
-
-  setMessage("正在优化参考图体积...");
-  const optimized = [];
-  for (const file of images) {
-    optimized.push(await compressImage(file));
-  }
-
-  referenceFiles = [...referenceFiles, ...optimized].slice(0, MAX_REFERENCE_FILES);
-  updateModeLabel();
-  renderReferences();
-  setMessage(`已添加 ${referenceFiles.length} 张参考图。`, "success");
-}
-
-function compressImage(file) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const maxSide = 1280;
-      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-      const width = Math.max(1, Math.round(img.width * scale));
-      const height = Math.max(1, Math.round(img.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve(file);
-            return;
-          }
-          const name = file.name.replace(/\.[^.]+$/, "") + "-museframe.jpg";
-          resolve(new File([blob], name, {type: "image/jpeg", lastModified: Date.now()}));
-        },
-        "image/jpeg",
-        0.82,
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(file);
-    };
-    img.src = objectUrl;
-  });
-}
-
-function renderReferences() {
-  referenceList.innerHTML = "";
-  uploadPlaceholder.style.display = referenceFiles.length ? "none" : "grid";
-  if (!referenceFiles.length) return;
-
-  const count = document.createElement("div");
-  count.className = "reference-count";
-  count.textContent = `已添加 ${referenceFiles.length} 张参考图`;
-  referenceList.appendChild(count);
-  updateModeLabel();
-
-  referenceFiles.forEach((file, index) => {
-    const item = document.createElement("div");
-    item.className = "reference-item";
-    const previewUrl = URL.createObjectURL(file);
-    item.innerHTML = `
-      <img src="${previewUrl}" alt="参考图 ${index + 1}">
-      <button type="button">×</button>
-    `;
-    item.querySelector("button").addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      referenceFiles.splice(index, 1);
-      updateModeLabel();
-      renderReferences();
-    });
-    referenceList.appendChild(item);
-  });
-}
-
-function clearForm() {
-  promptInput.value = "";
-  referenceFiles = [];
-  videoStartFrame = [];
-  videoEndFrame = [];
-  videoReferenceFiles = [];
-  currentImageUrls = [];
-  downloadButton.disabled = true;
-  updateModeLabel();
-  renderReferences();
-  renderVideoFrames();
-  imageStage.innerHTML = `
-    <div class="empty">
-      <strong>等待生成</strong>
-      <span>输入提示词，或拖入参考图后生成。</span>
-    </div>
-  `;
-  setMessage("已清空。");
-}
-
-function savePrompt(prompt) {
-  const history = getHistory();
-  const item = {
+function savePrompt(prompt, data) {
+  const list = getHistory();
+  list.unshift({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     prompt,
-    mode: getActiveUploadFiles().length
-      ? (activeTool === "video" ? "图生视频" : "图生图")
-      : (activeTool === "video" ? "文生视频" : "文生图"),
+    tool: activeTool,
+    mode: activeTool === "image" ? imageMode : videoMode,
     model: modelInput.value,
-    ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
-    quality: activeTool === "image" ? imageQualityInput.options[imageQualityInput.selectedIndex].text : "",
-    count: activeTool === "video" ? "1" : imageCountInput.value,
-    mediaType: activeTool,
-    duration: activeTool === "video" ? videoDurationInput.value : "",
-    resolution: activeTool === "video" ? videoResolutionInput.value : "",
-    time: new Date().toLocaleString("zh-CN", {hour12: false}),
-  };
-  localStorage.setItem(
-    HISTORY_STORE,
-    JSON.stringify([item, ...history.filter((old) => old.prompt !== prompt)].slice(0, 12)),
-  );
+    ratio: ratioInput.value,
+    createdAt: Date.now(),
+    task: data.taskId || data.id || "",
+  });
+  localStorage.setItem(HISTORY_STORE, JSON.stringify(list.slice(0, 24)));
   renderHistory();
+  renderDashboard();
 }
 
 function getHistory() {
@@ -694,43 +738,24 @@ function getHistory() {
 }
 
 function renderHistory() {
-  const history = getHistory();
-  if (historyCount) {
-    historyCount.textContent = history.length ? `${history.length} 条记录` : "0 条记录";
-  }
-  if (!history.length) {
-    historyList.innerHTML = `<div class="history-empty">暂无记录，生成一次后会自动保存提示词。</div>`;
+  const list = getHistory();
+  historyCount.textContent = list.length;
+  metricHistory.textContent = list.length;
+  if (!list.length) {
+    historyList.innerHTML = `<div class="history-item"><p>暂无记录，生成一次后会自动保存提示词。</p></div>`;
     return;
   }
-
-  historyList.innerHTML = history.map((item) => `
+  historyList.innerHTML = list.map((item) => `
     <article class="history-item">
-      <b>${escapeHtml(item.mode)} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${escapeHtml(item.quality || "")} · ${escapeHtml(item.count || "1")}张</b>
-      <p class="prompt-preview">${escapeHtml(shortText(item.prompt, 88))}</p>
-      <p class="prompt-full hidden">${escapeHtml(item.prompt)}</p>
-      <div class="history-actions">
-        <button class="soft toggle-prompt" type="button">展开全文</button>
-        <button type="button" data-prompt="${escapeHtml(item.prompt)}">复用提示词</button>
-      </div>
+      <strong>${item.tool === "video" ? "视频" : "图片"} · ${escapeHtml(item.model)} · ${escapeHtml(item.ratio)}</strong>
+      <p>${escapeHtml(item.prompt)}</p>
+      <button class="ghost" type="button" data-reuse-prompt="${escapeAttr(item.id)}">复用提示词</button>
     </article>
   `).join("");
-
-  historyList.querySelectorAll(".toggle-prompt").forEach((button) => {
+  historyList.querySelectorAll("[data-reuse-prompt]").forEach((button) => {
     button.addEventListener("click", () => {
-      const card = button.closest(".history-item");
-      const preview = card.querySelector(".prompt-preview");
-      const full = card.querySelector(".prompt-full");
-      const expanded = full.classList.toggle("hidden") === false;
-      preview.classList.toggle("hidden", expanded);
-      button.textContent = expanded ? "收起" : "展开全文";
-    });
-  });
-
-  historyList.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.addEventListener("click", () => {
-      promptInput.value = button.dataset.prompt || "";
-      promptInput.focus();
-      setMessage("已填入历史提示词。");
+      const item = getHistory().find((entry) => entry.id === button.dataset.reusePrompt);
+      if (item) promptInput.value = item.prompt;
     });
   });
 }
@@ -738,30 +763,26 @@ function renderHistory() {
 function clearHistory() {
   localStorage.removeItem(HISTORY_STORE);
   renderHistory();
+  renderDashboard();
 }
 
-function downloadCurrentImage() {
-  if (!currentImageUrls.length) return;
-  downloadUrls(currentImageUrls, "current");
-}
-
-function saveAssetBatch(imageUrls) {
-  const prompt = promptInput.value.trim();
-  const item = {
-    id: `asset-${Date.now()}`,
-    urls: imageUrls,
-    prompt,
-    model: modelInput.value,
-    ratio: aspectRatioInput.options[aspectRatioInput.selectedIndex].text,
-    quality: activeTool === "image" ? imageQualityInput.options[imageQualityInput.selectedIndex].text : "",
-    count: imageUrls.length,
-    mediaType: activeTool,
-    duration: activeTool === "video" ? videoDurationInput.value : "",
-    resolution: activeTool === "video" ? videoResolutionInput.value : "",
-    createdAt: Date.now(),
-  };
-  const assets = pruneAssets([item, ...getAssets()]);
-  localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
+function saveAssetBatch(results, prompt) {
+  const now = Date.now();
+  const assets = getAssets();
+  results.forEach((item, index) => {
+    assets.unshift({
+      id: crypto.randomUUID ? crypto.randomUUID() : `${now}-${index}`,
+      url: item.url,
+      mediaType: item.mediaType || inferMediaType(item.url, activeTool),
+      prompt,
+      model: modelInput.value,
+      ratio: ratioInput.value,
+      mode: activeTool === "image" ? imageMode : videoMode,
+      status: "success",
+      createdAt: now,
+    });
+  });
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
 }
 
 function getAssets() {
@@ -773,203 +794,198 @@ function getAssets() {
 }
 
 function pruneAssets(assets) {
-  const minTime = Date.now() - ASSET_RETENTION_MS;
-  return assets
-    .filter((item) => item && item.createdAt >= minTime && Array.isArray(item.urls) && item.urls.length)
-    .slice(0, 80);
+  const cutoff = Date.now() - ASSET_TTL_MS;
+  return assets.filter((item) => item.createdAt >= cutoff);
+}
+
+function filteredAssets() {
+  return getAssets().filter((item) => {
+    if (assetKindFilter !== "all" && item.mediaType !== assetKindFilter) return false;
+    if (assetSourceFilter !== "all" && item.mode !== assetSourceFilter) return false;
+    return true;
+  });
 }
 
 function renderAssets() {
-  const assets = getAssets();
-  localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
-  const total = assets.reduce((sum, item) => sum + item.urls.length, 0);
-  if (assetCount) {
-    assetCount.textContent = total ? `${total} 个资产` : "0 个资产";
-  }
-
+  const assets = filteredAssets();
+  const allAssets = getAssets();
+  assetCount.textContent = `${assets.length} / ${allAssets.length} 条记录`;
+  localStorage.setItem(ASSET_STORE, JSON.stringify(allAssets));
   if (!assets.length) {
-    assetList.innerHTML = `<div class="history-empty">最近 7 天还没有生成资产。</div>`;
-    downloadAssetsButton.disabled = true;
+    assetList.classList.add("empty");
+    assetList.innerHTML = "当前筛选条件下暂无作品。";
     return;
   }
-
-  downloadAssetsButton.disabled = false;
+  assetList.classList.remove("empty");
   assetList.innerHTML = assets.map((item) => `
-    <article class="asset-item">
-      <div class="asset-thumbs">
-        ${item.urls.slice(0, 4).map((url, index) => `
-          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
-            ${item.mediaType === "video"
-              ? `<video src="${escapeHtml(url)}" muted playsinline></video>`
-              : `<img src="${escapeHtml(url)}" alt="资产 ${index + 1}">`}
-          </a>
-        `).join("")}
-      </div>
+    <article class="asset-card">
+      <div class="asset-thumb">${renderResultMedia(item)}</div>
+      <h3>${item.mediaType === "video" ? "视频资产" : "图片资产"} · ${escapeHtml(item.model)}</h3>
+      <p>${escapeHtml(item.prompt || "")}</p>
       <div class="asset-meta">
-        <b>${escapeHtml(item.model)} · ${escapeHtml(item.ratio || "")} · ${item.mediaType === "video" ? `${escapeHtml(item.resolution || "")} · ${escapeHtml(item.duration || "")}秒` : `${escapeHtml(item.quality || "")} · ${item.urls.length} 张`}</b>
-        <small>${escapeHtml(formatTime(item.createdAt))}</small>
-        <p>${escapeHtml(item.prompt || "未记录提示词")}</p>
-        <button type="button" data-asset-id="${escapeHtml(item.id)}">下载这一组</button>
+        <span>${item.mode === "reference" ? "图生" : "文生"} · ${escapeHtml(item.ratio || "")}</span>
+        <span>${formatDate(item.createdAt)}</span>
+      </div>
+      <div class="asset-actions">
+        <button class="ghost" type="button" data-preview-asset="${escapeAttr(item.id)}">预览</button>
+        <button class="ghost" type="button" data-download-asset="${escapeAttr(item.id)}">下载</button>
       </div>
     </article>
   `).join("");
-
-  assetList.querySelectorAll("[data-asset-id]").forEach((button) => {
+  assetList.querySelectorAll("[data-preview-asset]").forEach((button) => {
     button.addEventListener("click", () => {
-      const target = getAssets().find((item) => item.id === button.dataset.assetId);
-      if (target) downloadUrls(target.urls, target.id);
+      const item = getAssets().find((entry) => entry.id === button.dataset.previewAsset);
+      if (item) {
+        setActiveTool(item.mediaType === "video" ? "video" : "image");
+        showPage("studio");
+        setNavActive(item.mediaType === "video" ? "video" : "image");
+        currentResults = [item];
+        renderCurrentResults([item]);
+      }
+    });
+  });
+  assetList.querySelectorAll("[data-download-asset]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const item = getAssets().find((entry) => entry.id === button.dataset.downloadAsset);
+      if (item) await downloadOne(item.url, filenameForAsset(item));
     });
   });
 }
 
-function downloadAllAssets() {
-  const urls = getAssets().flatMap((item) => item.urls);
-  if (!urls.length) return;
-  downloadUrls(urls, "7days");
+function renderDashboard() {
+  const assets = getAssets();
+  const images = assets.filter((item) => item.mediaType === "image").length;
+  const videos = assets.filter((item) => item.mediaType === "video").length;
+  metricTotal.textContent = assets.length;
+  metricImage.textContent = images;
+  metricVideo.textContent = videos;
+  metricHistory.textContent = getHistory().length;
+  const recent = assets.slice(0, 6);
+  if (!recent.length) {
+    dashboardRecent.classList.add("empty");
+    dashboardRecent.innerHTML = "暂无生成作品。";
+    return;
+  }
+  dashboardRecent.classList.remove("empty");
+  dashboardRecent.innerHTML = recent.map((item) => `
+    <article class="asset-card">
+      <div class="asset-thumb">${renderResultMedia(item)}</div>
+      <h3>${item.mediaType === "video" ? "视频" : "图片"} · ${escapeHtml(item.model)}</h3>
+    </article>
+  `).join("");
 }
 
 function clearAssets() {
   localStorage.removeItem(ASSET_STORE);
   renderAssets();
-  setMessage("最近 7 天资产记录已清空。");
+  renderDashboard();
+}
+
+async function downloadCurrent() {
+  if (!currentResults.length) return;
+  if (currentResults.length === 1) {
+    await downloadOne(currentResults[0].url, filenameForAsset(currentResults[0]));
+    return;
+  }
+  await downloadUrls(currentResults.map((item) => item.url), "museframe-current");
+}
+
+async function downloadAllAssets() {
+  const assets = filteredAssets();
+  if (!assets.length) {
+    setMessage("当前没有可下载的资产。", "error");
+    return;
+  }
+  await downloadUrls(assets.map((item) => item.url), "museframe-assets");
 }
 
 async function downloadUrls(urls, label) {
-  let success = 0;
-  for (const [index, url] of urls.entries()) {
-    try {
-      await downloadOne(url, `museframe-${label}-${index + 1}.${fileExtensionFor(url)}`);
-      success += 1;
-    } catch (error) {
-      setMessage(`下载失败：${friendlyError(error)}`, "error");
-    }
-  }
-  if (success) {
-    setMessage(`已开始下载 ${success} 个文件。`, "success");
+  for (let index = 0; index < urls.length; index += 1) {
+    await downloadOne(urls[index], `${label}-${index + 1}`);
+    await sleep(250);
   }
 }
 
 async function downloadOne(url, filename) {
-  if (String(url).startsWith("data:")) {
+  try {
+    const response = await fetch(downloadHref(url, filename));
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.error || `下载接口返回 ${response.status}`);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url;
+    link.href = objectUrl;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    return;
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    setMessage("下载已开始。", "ok");
+  } catch (error) {
+    setMessage(`下载失败：${friendlyError(error)}`, "error");
   }
-
-  const response = await fetch(downloadHref(url, filename));
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `下载接口返回 ${response.status}`);
-  }
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = filename;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
-}
-
-function bindInlineDownloads() {
-  imageStage.querySelectorAll(".inline-download").forEach((button) => {
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      button.textContent = "下载中";
-      try {
-        await downloadOne(button.dataset.url || "", button.dataset.name || "museframe-asset.png");
-        setMessage("已开始下载。", "success");
-      } catch (error) {
-        setMessage(`下载失败：${friendlyError(error)}`, "error");
-      } finally {
-        button.disabled = false;
-        button.textContent = "下载";
-      }
-    });
-  });
 }
 
 function downloadHref(url, filename) {
   return `/api/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(filename)}`;
 }
 
-function fileExtensionFor(url) {
-  const match = String(url).match(/\.(mp4|mov|webm|m4v|png|jpg|jpeg)(?=($|\?))/i);
-  if (!match) return "png";
-  return match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+function filenameForAsset(item) {
+  const ext = item.mediaType === "video" ? "mp4" : "png";
+  return `museframe-${item.mediaType || "asset"}-${Date.now()}.${ext}`;
 }
 
-function formatTime(value) {
-  return new Date(value).toLocaleString("zh-CN", {hour12: false});
+function inferMediaType(url, fallback = "image") {
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(url || "")) return "video";
+  return fallback === "video" ? "video" : "image";
 }
 
-function getKey() {
-  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
-  if (!key) {
-    setMessage("先输入并保存 Grsai API Key。", "error");
-    apiKeyInput.focus();
-    return "";
-  }
-  localStorage.setItem(KEY_STORE, key);
-  return key;
+function clearPendingPolls() {
+  pendingPollTimers.forEach((timer) => clearTimeout(timer));
+  pendingPollTimers = [];
 }
 
-function setBalance(value, detail) {
-  balanceValue.textContent = value;
-  balanceDetail.textContent = detail;
-}
-
-function setLoading(active, text = "生成图片") {
-  generateButton.disabled = active;
-  generateButton.textContent = active ? text : (activeTool === "video" ? "生成视频" : "生成图片");
+function sleep(ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    pendingPollTimers.push(timer);
+  });
 }
 
 function setMessage(text, type = "") {
   message.textContent = text;
-  message.className = type;
+  message.className = `message ${type}`.trim();
+}
+
+function friendlyError(error) {
+  const text = error?.message || String(error);
+  if (text === "Failed to fetch") return "浏览器没有连上后端，请确认打开的是 MuseFrame 正式网址并刷新页面。";
+  if (text.includes("insufficient credits")) return "当前 Key 积分不足，请更换 Key 或充值。";
+  if (text.includes("apikey")) return "API Key 无效或余额不足，请检查 Key。";
+  return text;
 }
 
 function maskKey(key) {
+  if (!key) return "";
   if (key.length <= 12) return "已保存";
   return `${key.slice(0, 5)}...${key.slice(-6)}`;
 }
 
-function friendlyError(error) {
-  const text = error?.message || String(error || "");
-  const lower = text.toLowerCase();
-  if (lower.includes("apikey expired")) {
-    return "这个 Grsai API Key 已过期或额度不可用。请换一个新的 Key 后重试。";
-  }
-  if (lower.includes("apikey error") || lower.includes("invalid api key")) {
-    return "Grsai API Key 不可用。请确认输入的是完整 Key，没有空格、引号或复制遗漏。";
-  }
-  if (text === "Failed to fetch") {
-    return "当前页面没有连到 MuseFrame 后端。请只打开正式网址，不要打开 GitHub、file 本地页或旧链接；如果已经是正式网址，请按 Ctrl+F5 强制刷新。";
-  }
-  if (text.includes("timeout") || text.includes("timed out")) {
-    return "接口连接超时。建议先用文生图测试，图生图时减少参考图数量。";
-  }
-  if (text.includes("文件域名未加入下载白名单")) {
-    return text;
-  }
-  return text;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function shortText(value, limit = 80) {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+function formatDate(timestamp) {
+  return new Date(timestamp).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function escapeHtml(value) {
-  return String(value || "")
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
 }

@@ -223,6 +223,12 @@ def safe_video_aspect_ratio(value):
     value = (value or "").strip().lower()
     if value in {"portrait", "landscape"}:
         return value
+    if ":" in value:
+        try:
+            width, height = [float(item) for item in value.split(":", 1)]
+            return "portrait" if height >= width else "landscape"
+        except ValueError:
+            pass
     if "x" in value:
         try:
             width, height = [int(item) for item in value.split("x", 1)]

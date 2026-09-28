@@ -118,7 +118,6 @@ const IMAGE_RATIOS = [
 const VIDEO_RATIOS = [
   { value: "9:16", label: "9:16 竖屏" },
   { value: "16:9", label: "16:9 横屏" },
-  { value: "1:1", label: "1:1 方屏" },
 ];
 
 let activeTool = "image";

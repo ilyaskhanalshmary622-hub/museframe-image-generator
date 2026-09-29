@@ -1,7 +1,10 @@
 ﻿import base64
 import json
+import hashlib
 import os
 import socket
+import threading
+import time
 import mimetypes
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -13,7 +16,11 @@ from urllib.parse import parse_qs, quote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT / "public"
+DATA_DIR = ROOT / "data"
+TASK_STORE = DATA_DIR / "museframe_tasks.json"
+STORE_LOCK = threading.Lock()
 PORT = int(os.environ.get("PORT", "8765"))
+ASSET_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 
 def env(name, default=""):
@@ -313,6 +320,107 @@ def grsai_request(api_key, url, payload=None):
     raise RuntimeError(f"Grsai network timeout or connection failed: {reason}")
 
 
+def now_ms():
+    return int(time.time() * 1000)
+
+
+def owner_id(api_key):
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
+def load_records():
+    with STORE_LOCK:
+        if not TASK_STORE.exists():
+            return []
+        try:
+            return json.loads(TASK_STORE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+
+
+def save_records(records):
+    cutoff = now_ms() - ASSET_TTL_MS
+    pruned = [
+        item
+        for item in records
+        if int(item.get("createdAt", 0) or 0) >= cutoff
+    ][:500]
+    with STORE_LOCK:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        TASK_STORE.write_text(json.dumps(pruned, ensure_ascii=False, indent=2), encoding="utf-8")
+    return pruned
+
+
+def public_record(record):
+    return {key: value for key, value in record.items() if key != "owner"}
+
+
+def upsert_record(record):
+    records = load_records()
+    task_id = record.get("taskId")
+    record_id = record.get("id")
+    updated = False
+    for index, item in enumerate(records):
+        same_task = task_id and item.get("taskId") == task_id
+        same_id = record_id and item.get("id") == record_id
+        if same_task or same_id:
+            records[index] = {**item, **record, "updatedAt": now_ms()}
+            updated = True
+            break
+    if not updated:
+        records.insert(0, {**record, "createdAt": record.get("createdAt") or now_ms(), "updatedAt": now_ms()})
+    save_records(records)
+
+
+def owner_records(api_key):
+    owner = owner_id(api_key)
+    cutoff = now_ms() - ASSET_TTL_MS
+    records = [
+        item
+        for item in load_records()
+        if item.get("owner") == owner and int(item.get("createdAt", 0) or 0) >= cutoff
+    ]
+    return sorted(records, key=lambda item: int(item.get("createdAt", 0) or 0), reverse=True)
+
+
+def delete_owner_records(api_key):
+    owner = owner_id(api_key)
+    records = [item for item in load_records() if item.get("owner") != owner]
+    save_records(records)
+
+
+def record_from_result(result, api_key, prompt, fields, media_type):
+    task_id = result.get("taskId") or result.get("id") or ""
+    url = result.get("imageUrl") or result.get("videoUrl") or result.get("url") or ""
+    return {
+        "id": task_id or hashlib.sha1(f"{prompt}{url}{now_ms()}".encode("utf-8")).hexdigest(),
+        "owner": owner_id(api_key),
+        "taskId": task_id,
+        "url": url,
+        "mediaType": media_type,
+        "prompt": prompt,
+        "model": fields.get("model", model_name()),
+        "ratio": fields.get("aspectRatio", ""),
+        "mode": fields.get("mode", ""),
+        "status": "success" if url else "running",
+        "progress": result.get("progress"),
+        "createdAt": now_ms(),
+    }
+
+
+def merge_record_result(record, normalized):
+    url = normalized.get("imageUrl") or normalized.get("videoUrl") or normalized.get("url") or ""
+    merged = {
+        **record,
+        "status": "success" if url else normalized.get("status", record.get("status", "running")),
+        "progress": normalized.get("progress", record.get("progress")),
+        "updatedAt": now_ms(),
+    }
+    if url:
+        merged["url"] = url
+    return merged
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC_DIR), **kwargs)
@@ -341,12 +449,18 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/balance":
             self.handle_balance()
             return
+        if self.path == "/api/assets/clear":
+            self.handle_assets_clear()
+            return
         self.send_json(404, {"error": "Endpoint not found"})
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/result":
             self.handle_result(parsed)
+            return
+        if parsed.path == "/api/assets":
+            self.handle_assets()
             return
         if parsed.path == "/api/health":
             self.send_json(200, {"ok": True, "model": model_name(), "baseUrl": image_api_base()})
@@ -447,12 +561,18 @@ class Handler(SimpleHTTPRequestHandler):
                 }
                 results.append(normalize_result(grsai_request(api_key, image_api_url(), payload)))
 
+            saved_assets = []
+            for result in results:
+                record = record_from_result(result, api_key, prompt, fields, media_type)
+                upsert_record(record)
+                saved_assets.append(public_record(record))
+
             images = [item["imageUrl"] for item in results if item.get("imageUrl")]
             tasks = [{"taskId": item["taskId"]} for item in results if item.get("taskId")]
             if len(results) == 1:
-                self.send_json(200, {**results[0], "mediaType": media_type})
+                self.send_json(200, {**results[0], "mediaType": media_type, "assets": saved_assets})
             else:
-                self.send_json(200, {"status": "running", "tasks": tasks, "images": images, "mediaType": media_type})
+                self.send_json(200, {"status": "running", "tasks": tasks, "images": images, "mediaType": media_type, "assets": saved_assets})
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 
@@ -469,9 +589,42 @@ class Handler(SimpleHTTPRequestHandler):
 
         try:
             data = grsai_request(api_key, image_result_url(task_id))
-            self.send_json(200, normalize_result(data))
+            normalized = normalize_result(data)
+            for record in owner_records(api_key):
+                if record.get("taskId") == task_id:
+                    upsert_record(merge_record_result(record, normalized))
+                    break
+            self.send_json(200, normalized)
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
+
+    def handle_assets(self):
+        api_key = self.image_api_key()
+        if not api_key:
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
+            return
+
+        records = owner_records(api_key)
+        synced = []
+        for record in records:
+            if record.get("status") == "running" and record.get("taskId"):
+                try:
+                    data = grsai_request(api_key, image_result_url(record["taskId"]))
+                    record = merge_record_result(record, normalize_result(data))
+                    upsert_record(record)
+                except Exception as exc:
+                    record = {**record, "lastError": str(exc), "updatedAt": now_ms()}
+                    upsert_record(record)
+            synced.append(public_record(record))
+        self.send_json(200, {"assets": synced})
+
+    def handle_assets_clear(self):
+        api_key = self.image_api_key()
+        if not api_key:
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
+            return
+        delete_owner_records(api_key)
+        self.send_json(200, {"ok": True})
 
     def handle_balance(self):
         fields = {}

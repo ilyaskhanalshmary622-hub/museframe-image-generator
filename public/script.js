@@ -147,6 +147,8 @@ function init() {
   renderHistory();
   renderAssets();
   renderDashboard();
+  syncServerAssets({ silent: true });
+  window.setInterval(() => syncServerAssets({ silent: true }), 30000);
 }
 
 function bindAccess() {
@@ -291,6 +293,7 @@ function hydrateKey() {
   apiKeyInput.value = savedKey;
   apiKeySettings.value = savedKey;
   updateKeyState(savedKey);
+  if (savedKey) syncServerAssets({ silent: true });
 }
 
 function saveApiKey() {
@@ -302,6 +305,7 @@ function saveApiKey() {
   localStorage.setItem(KEY_STORE, key);
   updateKeyState(key);
   setMessage("API Key 已保存到当前浏览器。", "ok");
+  syncServerAssets({ silent: true });
 }
 
 function updateKeyState(key) {
@@ -557,11 +561,20 @@ async function handleGenerateResponse(data, prompt) {
     return;
   }
   if (Array.isArray(data.tasks) && data.tasks.length) {
-    await pollTasks(data.tasks, prompt, mediaType);
+    registerPendingTasks(data.tasks, prompt, mediaType);
+    pollTasks(data.tasks, prompt, mediaType).catch((error) => {
+      setMessage(`任务仍在后台生成：${friendlyError(error)}`, "ok");
+      syncServerAssets({ silent: true });
+    });
     return;
   }
   if (data.taskId || data.id) {
-    await pollTasks([{ taskId: data.taskId || data.id }], prompt, mediaType);
+    const tasks = [{ taskId: data.taskId || data.id }];
+    registerPendingTasks(tasks, prompt, mediaType);
+    pollTasks(tasks, prompt, mediaType).catch((error) => {
+      setMessage(`任务仍在后台生成：${friendlyError(error)}`, "ok");
+      syncServerAssets({ silent: true });
+    });
     return;
   }
   throw new Error(JSON.stringify(data));
@@ -589,7 +602,12 @@ async function pollTasks(tasks, prompt, mediaType) {
       return;
     }
   }
-  throw new Error("生成任务等待超时，请稍后在平台记录里查看。");
+  markTasksRunning(tasks, prompt, mediaType);
+  setLoading(
+    "任务仍在后台生成",
+    "任务已保存到作品库。视频或高规格图片可能需要更久，稍后打开作品库会继续同步。"
+  );
+  setMessage("任务还在后台生成，已保存到作品库；稍后回来也能继续查看。", "ok");
 }
 
 async function fetchTask(taskId) {
@@ -604,7 +622,15 @@ function normalizeTaskResult(data, mediaType) {
   if (!data) return null;
   const status = `${data.status || ""}`.toLowerCase();
   const url = data.imageUrl || data.videoUrl || data.url || firstResultUrl(data);
-  if (url) return { url, mediaType: inferMediaType(url, mediaType), status: "success" };
+  if (url) {
+    return {
+      id: data.taskId || data.id || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`),
+      taskId: data.taskId || data.id || "",
+      url,
+      mediaType: inferMediaType(url, mediaType),
+      status: "success",
+    };
+  }
   if (status === "failed" || status === "error") {
     throw new Error(data.error || JSON.stringify(data));
   }
@@ -624,6 +650,88 @@ function finishResults(results, prompt) {
   setMessage(`生成成功，已保存 ${results.length} 个作品到作品库。`, "ok");
   renderAssets();
   renderDashboard();
+  syncServerAssets({ silent: true });
+}
+
+function registerPendingTasks(tasks, prompt, mediaType) {
+  const now = Date.now();
+  const assets = getAssets();
+  tasks.forEach((task, index) => {
+    const taskId = task.taskId || task.id || "";
+    const id = taskId || (crypto.randomUUID ? crypto.randomUUID() : `${now}-${index}`);
+    upsertLocalAsset(assets, {
+      id,
+      taskId,
+      mediaType,
+      prompt,
+      model: modelInput.value,
+      ratio: ratioInput.value,
+      mode: activeTool === "image" ? imageMode : videoMode,
+      status: "running",
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
+  renderAssets();
+  renderDashboard();
+  setMessage("任务已提交，已保存到作品库，生成完成后会自动同步。", "ok");
+}
+
+function markTasksRunning(tasks, prompt, mediaType) {
+  registerPendingTasks(tasks, prompt, mediaType);
+}
+
+async function syncServerAssets({ silent = false } = {}) {
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
+  if (!key) return;
+  try {
+    const data = await fetchJson("/api/assets", {
+      headers: { "X-Image-Api-Key": key },
+    });
+    mergeServerAssets(data.assets || []);
+    renderAssets();
+    renderDashboard();
+    if (!silent) setMessage("作品库已同步。", "ok");
+  } catch (error) {
+    if (!silent) setMessage(`同步作品库失败：${friendlyError(error)}`, "error");
+  }
+}
+
+function mergeServerAssets(serverAssets) {
+  if (!Array.isArray(serverAssets) || !serverAssets.length) return;
+  const assets = getAssets();
+  serverAssets.forEach((item) => {
+    upsertLocalAsset(assets, {
+      id: item.id || item.taskId || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`),
+      taskId: item.taskId || "",
+      url: item.url || "",
+      mediaType: item.mediaType || inferMediaType(item.url, "image"),
+      prompt: item.prompt || "",
+      model: item.model || "",
+      ratio: item.ratio || "",
+      mode: item.mode || "",
+      status: item.status || (item.url ? "success" : "running"),
+      progress: item.progress,
+      createdAt: item.createdAt || Date.now(),
+      updatedAt: item.updatedAt || Date.now(),
+      lastError: item.lastError || "",
+    });
+  });
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
+}
+
+function upsertLocalAsset(assets, next) {
+  const index = assets.findIndex((item) => {
+    const sameTask = next.taskId && item.taskId === next.taskId;
+    const sameId = next.id && item.id === next.id;
+    return sameTask || sameId;
+  });
+  if (index >= 0) {
+    assets[index] = { ...assets[index], ...next };
+    return;
+  }
+  assets.unshift(next);
 }
 
 function renderCurrentResults(results) {
@@ -847,8 +955,9 @@ function saveAssetBatch(results, prompt) {
   const now = Date.now();
   const assets = getAssets();
   results.forEach((item, index) => {
-    assets.unshift({
-      id: crypto.randomUUID ? crypto.randomUUID() : `${now}-${index}`,
+    upsertLocalAsset(assets, {
+      id: item.id || item.taskId || (crypto.randomUUID ? crypto.randomUUID() : `${now}-${index}`),
+      taskId: item.taskId || "",
       url: item.url,
       mediaType: item.mediaType || inferMediaType(item.url, activeTool),
       prompt,
@@ -872,7 +981,7 @@ function getAssets() {
 
 function pruneAssets(assets) {
   const cutoff = Date.now() - ASSET_TTL_MS;
-  return assets.filter((item) => item.createdAt >= cutoff);
+  return assets.filter((item) => (item.createdAt || 0) >= cutoff);
 }
 
 function filteredAssets() {
@@ -896,16 +1005,16 @@ function renderAssets() {
   assetList.classList.remove("empty");
   assetList.innerHTML = assets.map((item) => `
     <article class="asset-card">
-      <div class="asset-thumb">${renderResultMedia(item)}</div>
+      <div class="asset-thumb">${renderAssetMedia(item)}</div>
       <h3>${item.mediaType === "video" ? "视频资产" : "图片资产"} · ${escapeHtml(item.model)}</h3>
       <p>${escapeHtml(item.prompt || "")}</p>
       <div class="asset-meta">
         <span>${item.mode === "reference" ? "图生" : "文生"} · ${escapeHtml(item.ratio || "")}</span>
-        <span>${formatDate(item.createdAt)}</span>
+        <span>${statusLabel(item.status)} · ${formatDate(item.createdAt)}</span>
       </div>
       <div class="asset-actions">
-        <button class="ghost" type="button" data-preview-asset="${escapeAttr(item.id)}">预览</button>
-        <button class="ghost" type="button" data-download-asset="${escapeAttr(item.id)}">下载</button>
+        <button class="ghost" type="button" data-preview-asset="${escapeAttr(item.id)}" ${item.url ? "" : "disabled"}>预览</button>
+        <button class="ghost" type="button" data-download-asset="${escapeAttr(item.id)}" ${item.url ? "" : "disabled"}>下载</button>
       </div>
     </article>
   `).join("");
@@ -924,9 +1033,26 @@ function renderAssets() {
   assetList.querySelectorAll("[data-download-asset]").forEach((button) => {
     button.addEventListener("click", async () => {
       const item = getAssets().find((entry) => entry.id === button.dataset.downloadAsset);
-      if (item) await downloadOne(item.url, filenameForAsset(item));
+      if (item?.url) await downloadOne(item.url, filenameForAsset(item));
     });
   });
+}
+
+function renderAssetMedia(item) {
+  if (item.url) return renderResultMedia(item);
+  return `
+    <div class="asset-placeholder">
+      <strong>${statusLabel(item.status)}</strong>
+      <span>${item.taskId ? `任务 ID：${escapeHtml(item.taskId.slice(0, 10))}` : "等待接口返回结果"}</span>
+      ${item.lastError ? `<small>${escapeHtml(item.lastError)}</small>` : ""}
+    </div>
+  `;
+}
+
+function statusLabel(status) {
+  if (status === "success" || status === "succeeded") return "已完成";
+  if (status === "failed" || status === "error") return "生成失败";
+  return "生成中";
 }
 
 function renderDashboard() {
@@ -946,13 +1072,24 @@ function renderDashboard() {
   dashboardRecent.classList.remove("empty");
   dashboardRecent.innerHTML = recent.map((item) => `
     <article class="asset-card">
-      <div class="asset-thumb">${renderResultMedia(item)}</div>
+      <div class="asset-thumb">${renderAssetMedia(item)}</div>
       <h3>${item.mediaType === "video" ? "视频" : "图片"} · ${escapeHtml(item.model)}</h3>
     </article>
   `).join("");
 }
 
-function clearAssets() {
+async function clearAssets() {
+  const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
+  if (key) {
+    try {
+      await fetchJson("/api/assets/clear", {
+        method: "POST",
+        headers: { "X-Image-Api-Key": key },
+      });
+    } catch (error) {
+      setMessage(`清空后端作品库失败：${friendlyError(error)}`, "error");
+    }
+  }
   localStorage.removeItem(ASSET_STORE);
   renderAssets();
   renderDashboard();
@@ -968,7 +1105,7 @@ async function downloadCurrent() {
 }
 
 async function downloadAllAssets() {
-  const assets = filteredAssets();
+  const assets = filteredAssets().filter((item) => item.url);
   if (!assets.length) {
     setMessage("当前没有可下载的资产。", "error");
     return;

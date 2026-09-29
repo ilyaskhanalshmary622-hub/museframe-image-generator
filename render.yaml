@@ -7,7 +7,7 @@ services:
     startCommand: python server.py
     envVars:
       - key: IMAGE_API_BASE_URL
-        value: https://grsai.dakka.com.cn
+        value: https://grsaiapi.com
       - key: IMAGE_MODEL
         value: gpt-image-2.5
       - key: MUSEFRAME_ACCESS_PASSWORD

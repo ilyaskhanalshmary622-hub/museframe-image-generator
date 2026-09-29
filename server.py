@@ -382,13 +382,27 @@ class Handler(SimpleHTTPRequestHandler):
             )
             if media_type == "video":
                 frame_notes = []
-                if fields.get("hasStartFrame"):
-                    frame_notes.append("The first uploaded image is the START FRAME. Use it as the opening shot and keep its subject composition at the beginning.")
-                if fields.get("hasEndFrame"):
-                    frame_notes.append("The second uploaded image is the END FRAME. The video should naturally transition toward this final composition/result.")
-                ref_count = fields.get("videoReferenceCount", "0").strip()
-                if ref_count and ref_count != "0":
-                    frame_notes.append(f"The remaining uploaded images are additional visual references. Use them only for product, character, scene, material, and style consistency.")
+                try:
+                    file_roles = json.loads(fields.get("fileRoles", "[]"))
+                except json.JSONDecodeError:
+                    file_roles = []
+
+                if isinstance(file_roles, list) and file_roles:
+                    for index, role in enumerate(file_roles[: len(files)], start=1):
+                        if role == "start_frame":
+                            frame_notes.append(f"Uploaded image #{index} is the START FRAME. Use it as the opening shot and keep its subject composition at the beginning.")
+                        elif role == "end_frame":
+                            frame_notes.append(f"Uploaded image #{index} is the END FRAME. The video should naturally transition toward this final composition/result.")
+                        else:
+                            frame_notes.append(f"Uploaded image #{index} is a visual reference. Use it for product, character, scene, material, and style consistency.")
+                else:
+                    if fields.get("hasStartFrame"):
+                        frame_notes.append("The first uploaded image is the START FRAME. Use it as the opening shot and keep its subject composition at the beginning.")
+                    if fields.get("hasEndFrame"):
+                        frame_notes.append("The next uploaded image is the END FRAME. The video should naturally transition toward this final composition/result.")
+                    ref_count = fields.get("videoReferenceCount", "0").strip()
+                    if ref_count and ref_count != "0":
+                        frame_notes.append("The remaining uploaded images are additional visual references. Use them only for product, character, scene, material, and style consistency.")
                 if frame_notes:
                     prompt_text = "\n".join(
                         [

@@ -390,11 +390,12 @@ function syncModelCards() {
 function bindUploads() {
   dropZone.addEventListener("click", () => imageFileInput.click());
   imageFileInput.addEventListener("change", async () => {
-    imageRefs = await filesToItems([...imageFileInput.files].slice(0, 8));
+    imageRefs = await appendFileItems(imageRefs, [...imageFileInput.files], 8);
+    imageFileInput.value = "";
     renderReferenceList();
   });
   bindDrop(dropZone, async (files) => {
-    imageRefs = await filesToItems(files.slice(0, 8));
+    imageRefs = await appendFileItems(imageRefs, files, 8);
     renderReferenceList();
   });
 
@@ -403,14 +404,17 @@ function bindUploads() {
   videoReferenceZone.addEventListener("click", () => videoReferenceInput.click());
   videoStartInput.addEventListener("change", async () => {
     [startFrame] = await filesToItems([...videoStartInput.files].slice(0, 1));
+    videoStartInput.value = "";
     renderVideoFrames();
   });
   videoEndInput.addEventListener("change", async () => {
     [endFrame] = await filesToItems([...videoEndInput.files].slice(0, 1));
+    videoEndInput.value = "";
     renderVideoFrames();
   });
   videoReferenceInput.addEventListener("change", async () => {
-    videoRefs = await filesToItems([...videoReferenceInput.files].slice(0, 6));
+    videoRefs = await appendFileItems(videoRefs, [...videoReferenceInput.files], 6);
+    videoReferenceInput.value = "";
     renderVideoFrames();
   });
   bindDrop(startFrameZone, async (files) => {
@@ -422,7 +426,7 @@ function bindUploads() {
     renderVideoFrames();
   });
   bindDrop(videoReferenceZone, async (files) => {
-    videoRefs = await filesToItems(files.slice(0, 6));
+    videoRefs = await appendFileItems(videoRefs, files, 6);
     renderVideoFrames();
   });
 }
@@ -507,6 +511,12 @@ async function generate() {
     form.append("count", activeTool === "image" ? imageCountInput.value : "1");
     form.append("resolution", videoResolutionInput.value);
     form.append("duration", videoDurationInput.value);
+    if (activeTool === "video") {
+      form.append("hasStartFrame", startFrame ? "1" : "");
+      form.append("hasEndFrame", endFrame ? "1" : "");
+      form.append("videoReferenceCount", String(videoRefs.length));
+      form.append("fileRoles", JSON.stringify(getActiveFileRoles()));
+    }
     refs.forEach((item) => form.append("files", item.file, item.file.name));
 
     const data = await fetchJson("/api/generate", { method: "POST", body: form });
@@ -619,6 +629,16 @@ function getActiveFiles() {
   return [startFrame, endFrame, ...videoRefs].filter(Boolean);
 }
 
+function getActiveFileRoles() {
+  if (activeTool === "image") return imageRefs.map((_, index) => `image_reference_${index + 1}`);
+  if (videoMode !== "reference") return [];
+  const roles = [];
+  if (startFrame) roles.push("start_frame");
+  if (endFrame) roles.push("end_frame");
+  videoRefs.forEach((_, index) => roles.push(`video_reference_${index + 1}`));
+  return roles;
+}
+
 function clearCurrentInputs() {
   promptInput.value = "";
   imageRefs = [];
@@ -664,7 +684,7 @@ function resetStage(title = "等待生成", detail = "输入提示词，或拖�
 }
 
 function renderReferenceList() {
-  referenceList.innerHTML = imageRefs.map((item, index) => refCard(item, `remove-image-ref="${index}"`)).join("");
+  referenceList.innerHTML = imageRefs.map((item, index) => refCard(item, `remove-image-ref="${index}"`, `@参考${index + 1}`)).join("");
   referenceList.querySelectorAll("[remove-image-ref]").forEach((button) => {
     button.addEventListener("click", () => {
       imageRefs.splice(Number(button.getAttribute("remove-image-ref")), 1);
@@ -674,9 +694,9 @@ function renderReferenceList() {
 }
 
 function renderVideoFrames() {
-  startFrameList.innerHTML = startFrame ? refCard(startFrame, "remove-start-frame") : "";
-  endFrameList.innerHTML = endFrame ? refCard(endFrame, "remove-end-frame") : "";
-  videoReferenceList.innerHTML = videoRefs.map((item, index) => refCard(item, `remove-video-ref="${index}"`)).join("");
+  startFrameList.innerHTML = startFrame ? refCard(startFrame, "remove-start-frame", "@首帧") : "";
+  endFrameList.innerHTML = endFrame ? refCard(endFrame, "remove-end-frame", "@尾帧") : "";
+  videoReferenceList.innerHTML = videoRefs.map((item, index) => refCard(item, `remove-video-ref="${index}"`, `@参考${index + 1}`)).join("");
   startFrameList.querySelector("[remove-start-frame]")?.addEventListener("click", () => {
     startFrame = null;
     renderVideoFrames();
@@ -693,13 +713,21 @@ function renderVideoFrames() {
   });
 }
 
-function refCard(item, removeAttr) {
+function refCard(item, removeAttr, label = "") {
   return `
     <div class="ref-card">
       <img src="${escapeAttr(item.dataUrl)}" alt="">
+      ${label ? `<span class="ref-label">${escapeHtml(label)}</span>` : ""}
       <button type="button" ${removeAttr}>×</button>
     </div>
   `;
+}
+
+async function appendFileItems(currentItems, files, max) {
+  const available = Math.max(0, max - currentItems.length);
+  if (!available) return currentItems;
+  const nextItems = await filesToItems(files.slice(0, available));
+  return [...currentItems, ...nextItems].slice(0, max);
 }
 
 async function filesToItems(files) {

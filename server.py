@@ -21,7 +21,7 @@ def env(name, default=""):
 
 
 def image_api_base():
-    return env("IMAGE_API_BASE_URL", "https://grsai.dakka.com.cn").rstrip("/")
+    return env("IMAGE_API_BASE_URL", "https://grsaiapi.com").rstrip("/")
 
 
 def image_api_url():

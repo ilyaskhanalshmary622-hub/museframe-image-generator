@@ -80,6 +80,7 @@ const ASSET_STORE = "museframe_assets_v4";
 const ASSET_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 10 * 60 * 1000;
+const SUBMIT_WARN_MS = 45 * 1000;
 
 const IMAGE_MODELS = [
   { value: "nano-banana-pro", label: "Nano Banana Pro" },
@@ -495,11 +496,23 @@ async function generate() {
   syncVideoDurationLimit({ notify: true });
   clearPendingPolls();
   currentResults = [];
-  setLoading(activeTool === "image" ? "正在生成图片" : "正在生成视频");
-  setMessage("任务已提交，正在等待结果。", "ok");
   generateButton.disabled = true;
+  let submitWarnTimer = null;
+  setLoading(
+    activeTool === "image" ? "正在提交生图任务" : "正在提交视频任务",
+    "正在把提示词和参考图发送给 Grsai，先等待接口返回任务 ID。"
+  );
+  setMessage("任务正在提交，先不要关闭页面。", "ok");
 
   try {
+    submitWarnTimer = window.setTimeout(() => {
+      setLoading(
+        "接口还在提交任务",
+        "还没拿到任务 ID。常见原因：视频排队、参考图过大、接口响应慢或 Key 额度异常。建议继续等 1-2 分钟。"
+      );
+      setMessage("还在等待 Grsai 返回任务 ID，不是浏览器卡死。", "ok");
+    }, SUBMIT_WARN_MS);
+
     const form = new FormData();
     form.append("apiKey", key);
     form.append("mediaType", activeTool);
@@ -520,9 +533,11 @@ async function generate() {
     refs.forEach((item) => form.append("files", item.file, item.file.name));
 
     const data = await fetchJson("/api/generate", { method: "POST", body: form });
+    window.clearTimeout(submitWarnTimer);
     savePrompt(prompt, data);
     await handleGenerateResponse(data, prompt);
   } catch (error) {
+    window.clearTimeout(submitWarnTimer);
     resetStage("暂未生成成功", friendlyError(error));
     setMessage(`生成失败：${friendlyError(error)}`, "error");
   } finally {
@@ -555,7 +570,11 @@ async function handleGenerateResponse(data, prompt) {
 async function pollTasks(tasks, prompt, mediaType) {
   const started = Date.now();
   let completed = [];
-  setLoading(`${tasks.length} 个任务生成中`);
+  setLoading(
+    `${tasks.length} 个任务生成中`,
+    "已经拿到任务 ID，正在每 4 秒查询生成结果。视频通常比图片更慢。"
+  );
+  setMessage("已拿到任务 ID，正在轮询生成结果。", "ok");
 
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     await sleep(POLL_INTERVAL_MS);
@@ -563,7 +582,8 @@ async function pollTasks(tasks, prompt, mediaType) {
     completed = checks
       .map((item) => normalizeTaskResult(item, mediaType))
       .filter(Boolean);
-    updateLoadingProgress(completed.length, tasks.length);
+    const progressInfo = checks.map((item) => item?.progress).filter((item) => item !== undefined && item !== null);
+    updateLoadingProgress(completed.length, tasks.length, progressInfo);
     if (completed.length >= tasks.length) {
       finishResults(completed, prompt);
       return;
@@ -655,7 +675,7 @@ function clearCurrentInputs() {
   setMessage("已清空当前输入。", "ok");
 }
 
-function setLoading(title) {
+function setLoading(title, detail = "正在提交任务，请保持页面打开。") {
   stage.innerHTML = `
     <div class="empty-state">
       <div class="loader"></div>
@@ -663,11 +683,18 @@ function setLoading(title) {
       <p id="loading-progress">正在提交任务，请保持页面打开。</p>
     </div>
   `;
+  const progressNode = document.querySelector("#loading-progress");
+  if (progressNode) progressNode.textContent = detail;
   downloadCurrentButton.disabled = true;
 }
 
-function updateLoadingProgress(done, total) {
+function updateLoadingProgress(done, total, progressInfo = []) {
   const node = document.querySelector("#loading-progress");
+  if (node) {
+    const progressText = progressInfo.length ? `，进度：${progressInfo.join(" / ")}` : "";
+    node.textContent = `已完成 ${done}/${total}${progressText}，正在等待剩余任务。`;
+    return;
+  }
   if (node) node.textContent = `已完成 ${done}/${total}，正在等待剩余任务。`;
 }
 

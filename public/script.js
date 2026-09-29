@@ -233,6 +233,7 @@ function setActiveTool(tool) {
   populateRatioOptions(isImage ? IMAGE_RATIOS : VIDEO_RATIOS);
   syncModeVisibility();
   syncModelCards();
+  syncVideoDurationLimit();
   resetStage();
 }
 
@@ -244,6 +245,25 @@ function populateModelOptions(models) {
 function populateRatioOptions(ratios) {
   ratioInput.innerHTML = ratios.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
   ratioInput.value = activeTool === "image" ? "1:1" : "9:16";
+}
+
+function syncVideoDurationLimit({ notify = false } = {}) {
+  if (!videoResolutionInput || !videoDurationInput) return;
+  const is1080p = videoResolutionInput.value === "1080p";
+  const currentDuration = Number(videoDurationInput.value || 0);
+
+  [...videoDurationInput.options].forEach((option) => {
+    const seconds = Number(option.value);
+    option.disabled = is1080p && seconds > 10;
+    option.hidden = is1080p && seconds > 10;
+  });
+
+  if (is1080p && currentDuration > 10) {
+    videoDurationInput.value = "10";
+    if (notify) {
+      setMessage("MiniMax H3 的 1080p 最高支持 10 秒；480p/768p 可选择 15 秒。", "error");
+    }
+  }
 }
 
 function bindKeyControls() {
@@ -342,6 +362,8 @@ function bindModeControls() {
     });
   });
   modelInput.addEventListener("change", syncModelCards);
+  videoResolutionInput.addEventListener("change", () => syncVideoDurationLimit({ notify: true }));
+  videoDurationInput.addEventListener("change", () => syncVideoDurationLimit({ notify: true }));
 }
 
 function syncModeVisibility() {
@@ -466,6 +488,7 @@ async function generate() {
 
   localStorage.setItem(KEY_STORE, key);
   updateKeyState(key);
+  syncVideoDurationLimit({ notify: true });
   clearPendingPolls();
   currentResults = [];
   setLoading(activeTool === "image" ? "正在生成图片" : "正在生成视频");

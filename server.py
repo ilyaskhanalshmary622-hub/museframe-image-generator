@@ -267,6 +267,24 @@ def build_prompt(prompt, mode, files, requested_quality="standard"):
     return "\n".join(lines)
 
 
+def add_video_quality_prompt(prompt_text, resolution, duration):
+    return "\n".join(
+        [
+            prompt_text,
+            "",
+            "视频输出规格：",
+            f"分辨率必须按 {resolution} 输出，视频时长 {duration} 秒。",
+            "",
+            "高清画质要求：",
+            "真实商业广告质感，主体清晰，产品边缘锐利，材质纹理清楚，光影自然，画面稳定，不要低清感。",
+            "如果上传了首帧，必须把上传首帧作为清晰开场画面，保持产品形状、Logo方向、材质、颜色、结构和关键细节。",
+            "镜头运动要慢、稳、干净，避免快速甩镜、过强动态模糊、焦点漂移和压缩涂抹。",
+            "",
+            "负面提示词：低清晰度、画面模糊、产品糊、边缘涂抹、运动模糊、马赛克、噪点、压缩痕迹、产品变形、Logo变形、文字水印、闪烁、卡顿。",
+        ]
+    )
+
+
 def normalize_result(data):
     if not isinstance(data, dict):
         raise RuntimeError("Invalid response format from image service")
@@ -534,6 +552,7 @@ class Handler(SimpleHTTPRequestHandler):
                 video_duration = safe_video_duration(fields.get("duration", ""))
                 if video_resolution == "1080p" and video_duration > 10:
                     video_duration = 10
+                prompt_text = add_video_quality_prompt(prompt_text, video_resolution, video_duration)
                 common_payload = {
                     "model": selected_model or "minimax-h3",
                     "images": [file["dataUrl"] for file in files],

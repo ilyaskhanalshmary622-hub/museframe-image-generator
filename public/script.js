@@ -77,9 +77,9 @@ const ACCESS_STORE = "museframe_access_ok";
 const KEY_STORE = "museframe_user_api_key";
 const HISTORY_STORE = "museframe_prompt_history_v3";
 const ASSET_STORE = "museframe_assets_v4";
-const ASSET_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_LOCAL_ASSETS = 500;
 const POLL_INTERVAL_MS = 4000;
-const POLL_TIMEOUT_MS = 10 * 60 * 1000;
+const POLL_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const SUBMIT_WARN_MS = 45 * 1000;
 
 const IMAGE_MODELS = [
@@ -147,7 +147,6 @@ function init() {
   renderHistory();
   renderAssets();
   renderDashboard();
-  syncServerAssets({ silent: true });
   window.setInterval(() => syncServerAssets({ silent: true }), 30000);
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -299,7 +298,7 @@ function hydrateKey() {
   apiKeyInput.value = savedKey;
   apiKeySettings.value = savedKey;
   updateKeyState(savedKey);
-  if (savedKey) syncServerAssets({ silent: true });
+  if (savedKey) syncServerAssets({ silent: true, uploadLocal: true });
 }
 
 function saveApiKey() {
@@ -311,7 +310,7 @@ function saveApiKey() {
   localStorage.setItem(KEY_STORE, key);
   updateKeyState(key);
   setMessage("API Key 已保存到当前浏览器。", "ok");
-  syncServerAssets({ silent: true });
+  syncServerAssets({ silent: true, uploadLocal: true });
 }
 
 function updateKeyState(key) {
@@ -569,7 +568,7 @@ async function handleGenerateResponse(data, prompt) {
   if (Array.isArray(data.tasks) && data.tasks.length) {
     registerPendingTasks(data.tasks, prompt, mediaType);
     pollTasks(data.tasks, prompt, mediaType).catch((error) => {
-      setMessage(`任务仍在后台生成：${friendlyError(error)}`, "ok");
+      handlePollFailure(data.tasks, error);
       syncServerAssets({ silent: true });
     });
     return;
@@ -578,7 +577,7 @@ async function handleGenerateResponse(data, prompt) {
     const tasks = [{ taskId: data.taskId || data.id }];
     registerPendingTasks(tasks, prompt, mediaType);
     pollTasks(tasks, prompt, mediaType).catch((error) => {
-      setMessage(`任务仍在后台生成：${friendlyError(error)}`, "ok");
+      handlePollFailure(tasks, error);
       syncServerAssets({ silent: true });
     });
     return;
@@ -597,12 +596,17 @@ async function pollTasks(tasks, prompt, mediaType) {
 
   while (Date.now() - started < POLL_TIMEOUT_MS) {
     await sleep(POLL_INTERVAL_MS);
-    const checks = await Promise.all(tasks.map((task) => fetchTask(task.taskId || task.id)));
+    const settled = await Promise.allSettled(tasks.map((task) => fetchTask(task.taskId || task.id)));
+    const checks = settled.map((result) => result.status === "fulfilled" ? result.value : null);
+    const transientErrors = settled.filter((result) => result.status === "rejected").length;
     completed = checks
       .map((item) => normalizeTaskResult(item, mediaType))
       .filter(Boolean);
     const progressInfo = checks.map((item) => item?.progress).filter((item) => item !== undefined && item !== null);
     updateLoadingProgress(completed.length, tasks.length, progressInfo);
+    if (transientErrors) {
+      setMessage(`任务仍在后台生成；${transientErrors} 次状态查询暂时失败，系统会继续重试。`, "ok");
+    }
     if (completed.length >= tasks.length) {
       finishResults(completed, prompt);
       return;
@@ -637,8 +641,10 @@ function normalizeTaskResult(data, mediaType) {
       status: "success",
     };
   }
-  if (status === "failed" || status === "error") {
-    throw new Error(data.error || JSON.stringify(data));
+  if (["failed", "error", "violation", "cancelled", "canceled"].includes(status)) {
+    const error = new Error(data.error || `任务状态：${status}`);
+    error.terminalTaskFailure = true;
+    throw error;
   }
   return null;
 }
@@ -678,7 +684,7 @@ function registerPendingTasks(tasks, prompt, mediaType) {
       updatedAt: now,
     });
   });
-  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, MAX_LOCAL_ASSETS)));
   renderAssets();
   renderDashboard();
   setMessage("任务已提交，已保存到作品库，生成完成后会自动同步。", "ok");
@@ -688,10 +694,20 @@ function markTasksRunning(tasks, prompt, mediaType) {
   registerPendingTasks(tasks, prompt, mediaType);
 }
 
-async function syncServerAssets({ silent = false } = {}) {
+async function syncServerAssets({ silent = false, uploadLocal = false } = {}) {
   const key = apiKeyInput.value.trim() || localStorage.getItem(KEY_STORE) || "";
   if (!key) return;
   try {
+    if (uploadLocal) {
+      const localAssets = getAssets().slice(0, MAX_LOCAL_ASSETS);
+      for (let index = 0; index < localAssets.length; index += 100) {
+        await fetchJson("/api/assets/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Image-Api-Key": key },
+          body: JSON.stringify({ assets: localAssets.slice(index, index + 100) }),
+        });
+      }
+    }
     const data = await fetchJson("/api/assets", {
       headers: { "X-Image-Api-Key": key },
     });
@@ -724,7 +740,7 @@ function mergeServerAssets(serverAssets) {
       lastError: item.lastError || "",
     });
   });
-  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, MAX_LOCAL_ASSETS)));
 }
 
 function upsertLocalAsset(assets, next) {
@@ -974,7 +990,7 @@ function saveAssetBatch(results, prompt) {
       createdAt: now,
     });
   });
-  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, 200)));
+  localStorage.setItem(ASSET_STORE, JSON.stringify(pruneAssets(assets).slice(0, MAX_LOCAL_ASSETS)));
 }
 
 function getAssets() {
@@ -986,8 +1002,27 @@ function getAssets() {
 }
 
 function pruneAssets(assets) {
-  const cutoff = Date.now() - ASSET_TTL_MS;
-  return assets.filter((item) => (item.createdAt || 0) >= cutoff);
+  return assets;
+}
+
+function handlePollFailure(tasks, error) {
+  if (!error?.terminalTaskFailure) {
+    setLoading("任务仍在后台生成", "状态查询暂时中断，稍后可从作品库继续查看。");
+    setMessage(`任务仍在后台生成；状态查询稍后重试。${friendlyError(error)}`, "ok");
+    return;
+  }
+  const ids = new Set(tasks.map((task) => task.taskId || task.id).filter(Boolean));
+  const assets = getAssets().map((item) => ids.has(item.taskId) ? {
+    ...item,
+    status: "failed",
+    lastError: friendlyError(error),
+    updatedAt: Date.now(),
+  } : item);
+  localStorage.setItem(ASSET_STORE, JSON.stringify(assets));
+  renderAssets();
+  renderDashboard();
+  resetStage("生成任务失败", friendlyError(error));
+  setMessage(`生成失败：${friendlyError(error)}`, "error");
 }
 
 function filteredAssets() {

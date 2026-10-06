@@ -12,5 +12,7 @@ services:
         value: gpt-image-2.5
       - key: MUSEFRAME_ACCESS_PASSWORD
         sync: false
+      - key: MUSEFRAME_DATA_DIR
+        value: /opt/render/project/src/data
       - key: IMAGE_API_KEY
         sync: false

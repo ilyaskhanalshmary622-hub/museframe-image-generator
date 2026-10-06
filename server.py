@@ -16,11 +16,11 @@ from urllib.parse import parse_qs, quote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT / "public"
-DATA_DIR = ROOT / "data"
+DATA_DIR = Path(os.environ.get("MUSEFRAME_DATA_DIR", str(ROOT / "data"))).resolve()
 TASK_STORE = DATA_DIR / "museframe_tasks.json"
 STORE_LOCK = threading.Lock()
 PORT = int(os.environ.get("PORT", "8765"))
-ASSET_TTL_MS = 7 * 24 * 60 * 60 * 1000
+MAX_ASSET_RECORDS = 5000
 
 
 def env(name, default=""):
@@ -305,10 +305,18 @@ def normalize_result(data):
         if data.get(key):
             return {"status": "succeeded", "imageUrl": data[key], "taskId": data.get("id")}
 
-    status = data.get("status") or "running"
-    if status in {"failed", "violation"}:
+    status = str(data.get("status") or "running").strip().lower()
+    task_id = data.get("taskId") or data.get("id") or data.get("task_id")
+    # Some async submit responses carry a provisional failure-like status even
+    # though the provider has accepted the task. Keep its ID so it can be polled.
+    if status in {"failed", "error", "violation"} and not task_id:
         raise RuntimeError(data.get("error") or status)
-    return {"status": status, "taskId": data.get("id"), "progress": data.get("progress")}
+    return {
+        "status": status,
+        "taskId": task_id,
+        "progress": data.get("progress"),
+        "error": data.get("error", ""),
+    }
 
 
 def grsai_request(api_key, url, payload=None):
@@ -357,12 +365,8 @@ def load_records():
 
 
 def save_records(records):
-    cutoff = now_ms() - ASSET_TTL_MS
-    pruned = [
-        item
-        for item in records
-        if int(item.get("createdAt", 0) or 0) >= cutoff
-    ][:500]
+    # Keep a bounded archive without expiring past work after an arbitrary week.
+    pruned = records[:MAX_ASSET_RECORDS]
     with STORE_LOCK:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         TASK_STORE.write_text(json.dumps(pruned, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -382,7 +386,14 @@ def upsert_record(record):
         same_task = task_id and item.get("taskId") == task_id
         same_id = record_id and item.get("id") == record_id
         if same_task or same_id:
-            records[index] = {**item, **record, "updatedAt": now_ms()}
+            merged = {**item, **record, "updatedAt": now_ms()}
+            if item.get("url") and not record.get("url"):
+                merged["url"] = item["url"]
+                if item.get("status") in {"success", "succeeded"}:
+                    merged["status"] = item["status"]
+            if item.get("status") in {"success", "succeeded"} and record.get("status") in {"running", "queued", "pending"}:
+                merged["status"] = item["status"]
+            records[index] = merged
             updated = True
             break
     if not updated:
@@ -392,11 +403,10 @@ def upsert_record(record):
 
 def owner_records(api_key):
     owner = owner_id(api_key)
-    cutoff = now_ms() - ASSET_TTL_MS
     records = [
         item
         for item in load_records()
-        if item.get("owner") == owner and int(item.get("createdAt", 0) or 0) >= cutoff
+        if item.get("owner") == owner
     ]
     return sorted(records, key=lambda item: int(item.get("createdAt", 0) or 0), reverse=True)
 
@@ -469,6 +479,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/assets/clear":
             self.handle_assets_clear()
+            return
+        if self.path == "/api/assets/sync":
+            self.handle_assets_sync()
             return
         self.send_json(404, {"error": "Endpoint not found"})
 
@@ -636,6 +649,54 @@ class Handler(SimpleHTTPRequestHandler):
                     upsert_record(record)
             synced.append(public_record(record))
         self.send_json(200, {"assets": synced})
+
+    def handle_assets_sync(self):
+        api_key = self.image_api_key()
+        if not api_key:
+            self.send_json(400, {"error": "Please set Grsai API Key first"})
+            return
+        try:
+            length = min(int(self.headers.get("Content-Length", "0")), 8 * 1024 * 1024)
+            payload = json.loads(self.rfile.read(length) or b"{}")
+            assets = payload.get("assets", []) if isinstance(payload, dict) else []
+            if not isinstance(assets, list):
+                raise ValueError("Assets must be a list")
+            synced = 0
+            for item in assets[:2000]:
+                if not isinstance(item, dict):
+                    continue
+                media_type = item.get("mediaType")
+                if media_type not in {"image", "video"}:
+                    continue
+                task_id = str(item.get("taskId") or "")[:256]
+                record_id = str(item.get("id") or task_id or "")[:256]
+                if not record_id:
+                    continue
+                status = str(item.get("status") or ("success" if item.get("url") else "running"))
+                if status not in {"success", "succeeded", "running", "queued", "pending", "failed", "error"}:
+                    status = "running"
+                record = {
+                    "id": record_id,
+                    "taskId": task_id,
+                    "owner": owner_id(api_key),
+                    "url": str(item.get("url") or "")[:4096],
+                    "mediaType": media_type,
+                    "prompt": str(item.get("prompt") or "")[:20000],
+                    "model": str(item.get("model") or "")[:128],
+                    "ratio": str(item.get("ratio") or "")[:32],
+                    "mode": str(item.get("mode") or "")[:32],
+                    "status": status,
+                    "progress": item.get("progress"),
+                    "lastError": str(item.get("lastError") or "")[:1000],
+                    "createdAt": int(item.get("createdAt") or now_ms()),
+                }
+                upsert_record(record)
+                synced += 1
+            self.send_json(200, {"ok": True, "synced": synced})
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json(400, {"error": f"Invalid asset sync payload: {exc}"})
+        except Exception as exc:
+            self.send_json(500, {"error": str(exc)})
 
     def handle_assets_clear(self):
         api_key = self.image_api_key()

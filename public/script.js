@@ -149,6 +149,12 @@ function init() {
   renderDashboard();
   syncServerAssets({ silent: true });
   window.setInterval(() => syncServerAssets({ silent: true }), 30000);
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      const studio = document.querySelector('[data-page-panel="studio"]');
+      if (studio.classList.contains("active")) generateButton.click();
+    }
+  });
 }
 
 function bindAccess() {
